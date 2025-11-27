@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Channel Creation Test</title>
+</head>
+<body>
+    <h1>Channel Creation Test</h1>
+    <p>Testing channel creation API...</p>
+    <script>
+        async function testChannelCreation() {
+            try {
+                // Login
+                const loginRes = await fetch('http://ome.imagetv.in/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: 'admin@example.com',
+                        password: 'Admin123!'
+                    })
+                });
+                const loginData = await loginRes.json();
+                const token = loginData.token;
+                
+                // Create channel
+                const createRes = await fetch('http://ome.imagetv.in/api/channels', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + token
+                    },
+                    body: JSON.stringify({
+                        name: 'test-from-browser',
+                        description: 'Test channel created from browser'
+                    })
+                });
+                const result = await createRes.json();
+                document.body.innerHTML += '<p>Result: ' + JSON.stringify(result, null, 2) + '</p>';
+            } catch (error) {
+                document.body.innerHTML += '<p>Error: ' + error.message + '</p>';
+            }
+        }
+        testChannelCreation();
+    </script>
+</body>
+</html>
