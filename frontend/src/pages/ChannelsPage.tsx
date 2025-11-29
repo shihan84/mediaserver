@@ -67,6 +67,7 @@ export function ChannelsPage() {
       setEditingChannelId(null);
       setEditChannelName('');
       setEditChannelDescription('');
+      setEditChannelAppName('app');
       setEditChannelStreamKey('');
       setEditVodFallbackEnabled(false);
       setEditVodFallbackFiles([]);
@@ -129,6 +130,7 @@ export function ChannelsPage() {
     setEditingChannelId(channel.id);
     setEditChannelName(channel.name);
     setEditChannelDescription(channel.description || '');
+    setEditChannelAppName(channel.appName || 'app');
     setEditChannelStreamKey(channel.streamKey || '');
     setEditVodFallbackEnabled(channel.vodFallbackEnabled || false);
     setEditVodFallbackFiles((channel.vodFallbackFiles as string[]) || []);
@@ -167,6 +169,7 @@ export function ChannelsPage() {
     setEditingChannelId(null);
     setEditChannelName('');
     setEditChannelDescription('');
+    setEditChannelAppName('app');
     setEditChannelStreamKey('');
       setEditVodFallbackEnabled(false);
       setEditVodFallbackFiles([]);
@@ -350,6 +353,7 @@ export function ChannelsPage() {
                     setShowCreateForm(false);
                     setChannelName('');
                     setChannelDescription('');
+                    setChannelAppName('app');
                     setChannelStreamKey('');
                   }}
                 >
