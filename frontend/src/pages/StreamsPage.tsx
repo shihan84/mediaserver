@@ -183,9 +183,9 @@ function StreamCard({ stream, isExpanded, onToggleExpand, onCopy }: {
         onClick={onToggleExpand}
       >
         <div className="flex-1">
-          <p className="font-medium">{stream.name}</p>
+          <p className="font-medium">{stream.name || 'Unknown Stream'}</p>
           <p className="text-sm text-muted-foreground">
-            {stream.sourceType || 'Unknown source'}
+            {stream.input?.sourceType || stream.sourceType || 'Unknown source'}
           </p>
         </div>
         <div className="flex items-center gap-2">
