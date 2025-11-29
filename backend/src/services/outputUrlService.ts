@@ -37,6 +37,30 @@ class OutputUrlService {
   }
 
   /**
+   * Generate input URLs for a stream (ingest URLs)
+   */
+  generateInputUrls(streamName: string, appName?: string): {
+    rtmp: string;
+    webrtc: string;
+    whip: string;
+    srt: string;
+    rtsp: string;
+  } {
+    const app = appName || this.config.app;
+    const streamPath = `${this.config.vhost}/${app}/${streamName}`;
+    const protocol = this.config.useHttps ? 'https' : 'http';
+    const wsProtocol = this.config.useHttps ? 'wss' : 'ws';
+
+    return {
+      rtmp: `rtmp://${this.config.publicHost}:1935/${app}/${streamName}`,
+      webrtc: `${wsProtocol}://${this.config.publicHost}:${this.config.webrtcPort}/${streamPath}`,
+      whip: `${protocol}://${this.config.publicHost}:${this.config.publicPort}/${streamPath}/whip`, // WHIP endpoint
+      srt: `srt://${this.config.publicHost}:${this.config.srtPort}?streamid=${streamPath}`,
+      rtsp: `rtsp://${this.config.publicHost}:554/${app}/${streamName}`, // RTSP pull URL format
+    };
+  }
+
+  /**
    * Generate all output URLs for a stream
    */
       generateOutputUrls(streamName: string, outputProfiles?: string[], appName?: string): {
@@ -60,11 +84,16 @@ class OutputUrlService {
     const app = appName || this.config.app;
     const streamPath = `${this.config.vhost}/${app}/${streamName}`;
 
+    // WebRTC uses WebSocket signaling (ws:// or wss://), not webrtc://
+    const webrtcProtocol = this.config.useHttps ? 'wss' : 'ws';
+    const webrtcSignalingUrl = `${webrtcProtocol}://${this.config.publicHost}:${this.config.webrtcPort}/${streamPath}`;
+
     const outputs = {
       llhls: `${baseUrl}/${streamPath}/llhls.m3u8`,
       hls: `${baseUrl}/${streamPath}/playlist.m3u8`,
       dash: `${baseUrl}/${streamPath}/manifest.mpd`,
-      webrtc: `webrtc://${this.config.publicHost}:${this.config.webrtcPort}/${streamPath}`,
+      webrtc: webrtcSignalingUrl, // Correct WebSocket signaling URL for OvenPlayer
+      webrtcLegacy: `webrtc://${this.config.publicHost}:${this.config.webrtcPort}/${streamPath}`, // Legacy format
       srt: `srt://${this.config.publicHost}:${this.config.srtPort}?streamid=${streamPath}`,
       thumbnail: `${baseUrl}/${streamPath}/thumbnail`,
     };

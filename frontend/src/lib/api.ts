@@ -66,6 +66,7 @@ export const usersApi = {
 export const channelsApi = {
   getAll: (params?: any) => api.get('/channels', { params }),
   getById: (id: string) => api.get(`/channels/${id}`),
+  getInputs: (id: string) => api.get(`/channels/${id}/inputs`),
   getOutputs: (id: string) => api.get(`/channels/${id}/outputs`),
   create: (data: any) => api.post('/channels', data),
   update: (id: string, data: any) => api.put(`/channels/${id}`, data),
@@ -94,10 +95,39 @@ export const streamsApi = {
   getAll: () => api.get('/streams'),
   getById: (streamName: string) => api.get(`/streams/${streamName}`),
   getOutputs: (streamName: string) => api.get(`/streams/${streamName}/outputs`),
+  getStats: (streamName: string) => api.get(`/streams/${streamName}/stats`),
+  getTracks: (streamName: string) => api.get(`/streams/${streamName}/tracks`),
+  getHealth: (streamName: string) => api.get(`/streams/${streamName}/health`),
+  getViewers: (streamName: string) => api.get(`/streams/${streamName}/viewers`),
+  getDvr: (streamName: string) => api.get(`/streams/${streamName}/dvr`),
+  getDvrConfig: (appName: string) => api.get(`/streams/dvr/config/${appName}`),
+  createSignedPolicy: (streamName: string, expiresIn?: number) =>
+    api.post(`/streams/${streamName}/signed-policy`, { expiresIn }),
   start: (channelId: string) => api.post(`/streams/${channelId}/start`),
   stop: (channelId: string) => api.post(`/streams/${channelId}/stop`),
   insertScte35: (channelId: string, markerId: string) =>
     api.post(`/streams/${channelId}/scte35`, { markerId }),
+};
+
+export const securityApi = {
+  getAdmissionWebhooks: (vhostName?: string) =>
+    api.get('/streams/security/admission-webhooks', { params: { vhostName } }),
+};
+
+export const omeApi = {
+  getStats: () => api.get('/ome/stats'),
+  getVirtualHosts: () => api.get('/ome/vhosts'),
+  getVirtualHost: (vhostName: string) => api.get(`/ome/vhosts/${vhostName}`),
+  getApplications: (vhostName: string) => api.get(`/ome/vhosts/${vhostName}/apps`),
+  getApplication: (vhostName: string, appName: string) => 
+    api.get(`/ome/vhosts/${vhostName}/apps/${appName}`),
+  getOutputProfiles: (vhostName: string, appName: string) =>
+    api.get(`/ome/vhosts/${vhostName}/apps/${appName}/outputProfiles`),
+  getThumbnail: (streamName: string) => api.get(`/ome/streams/${streamName}/thumbnail`),
+  getEvents: (params?: { vhostName?: string; limit?: number; offset?: number }) =>
+    api.get('/ome/events', { params }),
+  getEventWebhooks: (vhostName?: string) =>
+    api.get('/ome/events/webhooks', { params: { vhostName } }),
 };
 
 export const tasksApi = {

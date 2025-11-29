@@ -6,7 +6,8 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { useAuthStore } from '../store/authStore';
 import toast from 'react-hot-toast';
-import { Copy, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
+import { Copy, ExternalLink, ChevronDown, ChevronUp, Eye } from 'lucide-react';
+import { StreamDetailModal } from '../components/StreamDetailModal';
 
 // Get OME host from environment or use default
 const OME_HOST = (import.meta.env.VITE_OME_HOST as string) || 'ome.imagetv.in';
@@ -15,6 +16,7 @@ export function StreamsPage() {
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
   const [expandedStreams, setExpandedStreams] = useState<Set<string>>(new Set());
+  const [selectedStream, setSelectedStream] = useState<{ streamName: string; channel?: any } | null>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['streams'],
@@ -119,6 +121,18 @@ export function StreamsPage() {
 
   return (
     <div className="space-y-6">
+      {/* Stream Detail Modal */}
+      <StreamDetailModal
+        streamName={selectedStream?.streamName || null}
+        channel={selectedStream?.channel}
+        open={!!selectedStream}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedStream(null);
+          }
+        }}
+      />
+
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -388,6 +402,15 @@ function ChannelStreamCard({
             >
               {showDetails ? 'Hide Details' : 'Show Details'}
             </Button>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => setSelectedStream({ streamName: stream.name, channel })}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <Eye className="w-4 h-4 mr-2" />
+              View Details
+            </Button>
           </div>
         </div>
 
@@ -516,6 +539,17 @@ function StreamCard({
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedStream({ streamName: stream.name });
+            }}
+          >
+            <Eye className="w-3 h-3 mr-1" />
+            View
+          </Button>
           <span className="px-2 py-1 rounded text-xs bg-green-100 text-green-800">
             Active
           </span>

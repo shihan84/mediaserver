@@ -35,12 +35,40 @@ router.get('/:streamName', authenticate, async (req: AuthRequest, res: Response,
     const { streamName } = req.params;
     const stream = await omeClient.getStream(streamName);
     
-    // Get metrics from OME
+    // Find channel by streamKey to get appName
+    let channelAppName: string | undefined;
+    let channel = null;
+    try {
+      channel = await prisma.channel.findFirst({
+        where: { streamKey: streamName }
+      });
+      channelAppName = channel?.appName;
+    } catch (err) {
+      logger.warn('Could not find channel for stream', { streamName });
+    }
+
+    // Get enhanced metrics from OME
     let omeMetrics = null;
+    let streamStats = null;
+    let streamTracks = null;
+    let streamStatistics = null;
+    let streamHealth = null;
+    let viewerCount = null;
+
     try {
       omeMetrics = await omeClient.getMetrics(streamName);
     } catch (err) {
       // Metrics might not be available, continue without them
+    }
+
+    try {
+      streamStats = await omeClient.getStreamStats(streamName, 'default', channelAppName || 'app');
+      streamTracks = await omeClient.getStreamTracks(streamName, 'default', channelAppName || 'app');
+      streamStatistics = await omeClient.getStreamStatistics(streamName, 'default', channelAppName || 'app');
+      streamHealth = await omeClient.getStreamHealth(streamName, 'default', channelAppName || 'app');
+      viewerCount = await omeClient.getViewerCount(streamName, 'default', channelAppName || 'app');
+    } catch (err) {
+      logger.warn('Could not fetch enhanced metrics', { streamName, error: err });
     }
     
     // Get metrics from database
@@ -55,24 +83,133 @@ router.get('/:streamName', authenticate, async (req: AuthRequest, res: Response,
       take: 100
     });
 
+    // Get recording status if available
+    let recordingStatus = null;
+    try {
+      recordingStatus = await omeClient.getRecordingStatus(streamName);
+    } catch (err) {
+      // Recording might not be active
+    }
+
+    // Get push publishing status if available
+    let pushPublishingStatus = null;
+    try {
+      pushPublishingStatus = await omeClient.getPushPublishingStatus(streamName);
+    } catch (err) {
+      // Push publishing might not be active
+    }
+
     // Generate output URLs
     let outputUrls = null;
     let outputProfiles: string[] = [];
     try {
       // Try to get output profiles from OME
-      const profiles = await omeClient.getOutputProfiles();
+      const profiles = await omeClient.getOutputProfiles(channelAppName || 'app');
       outputProfiles = profiles?.outputProfiles?.map((p: any) => p.name) || [];
-      outputUrls = outputUrlService.generateOutputUrls(streamName, outputProfiles);
+      outputUrls = outputUrlService.generateOutputUrls(streamName, outputProfiles, channelAppName);
     } catch (err) {
       // If profiles not available, generate URLs without profiles
-      outputUrls = outputUrlService.generateOutputUrls(streamName);
+      outputUrls = outputUrlService.generateOutputUrls(streamName, undefined, channelAppName);
     }
 
     res.json({
       stream,
+      channel,
       omeMetrics,
+      streamStats,
+      streamTracks,
+      streamStatistics,
+      streamHealth,
+      viewerCount,
+      recordingStatus,
+      pushPublishingStatus,
       metrics: dbMetrics,
       outputs: outputUrls
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get enhanced stream statistics
+router.get('/:streamName/stats', authenticate, async (req: AuthRequest, res: Response, next) => {
+  try {
+    const { streamName } = req.params;
+    
+    // Find channel to get appName
+    const channel = await prisma.channel.findFirst({
+      where: { streamKey: streamName }
+    });
+    const appName = channel?.appName || 'app';
+
+    const stats = await omeClient.getStreamStats(streamName, 'default', appName);
+    
+    res.json({
+      streamName,
+      stats: stats || null
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get stream tracks (video/audio details)
+router.get('/:streamName/tracks', authenticate, async (req: AuthRequest, res: Response, next) => {
+  try {
+    const { streamName } = req.params;
+    
+    const channel = await prisma.channel.findFirst({
+      where: { streamKey: streamName }
+    });
+    const appName = channel?.appName || 'app';
+
+    const tracks = await omeClient.getStreamTracks(streamName, 'default', appName);
+    
+    res.json({
+      streamName,
+      tracks: tracks || null
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get stream health status
+router.get('/:streamName/health', authenticate, async (req: AuthRequest, res: Response, next) => {
+  try {
+    const { streamName } = req.params;
+    
+    const channel = await prisma.channel.findFirst({
+      where: { streamKey: streamName }
+    });
+    const appName = channel?.appName || 'app';
+
+    const health = await omeClient.getStreamHealth(streamName, 'default', appName);
+    
+    res.json({
+      streamName,
+      health
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get viewer count per protocol
+router.get('/:streamName/viewers', authenticate, async (req: AuthRequest, res: Response, next) => {
+  try {
+    const { streamName } = req.params;
+    
+    const channel = await prisma.channel.findFirst({
+      where: { streamKey: streamName }
+    });
+    const appName = channel?.appName || 'app';
+
+    const viewers = await omeClient.getViewerCount(streamName, 'default', appName);
+    
+    res.json({
+      streamName,
+      viewers: viewers || { total: 0, webrtc: 0, hls: 0, llhls: 0, dash: 0, srt: 0 }
     });
   } catch (error) {
     next(error);
@@ -304,6 +441,76 @@ router.post('/:channelId/scte35', authenticate, requireOperator, async (req: Aut
       message: 'SCTE-35 marker inserted successfully',
       marker,
       streamName
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get DVR status for a stream
+router.get('/:streamName/dvr', authenticate, async (req: AuthRequest, res: Response, next) => {
+  try {
+    const { streamName } = req.params;
+    const channel = await prisma.channel.findFirst({ where: { streamKey: streamName } });
+    const dvrStatus = await omeClient.getDvrStatus(streamName, 'default', channel?.appName);
+    res.json({
+      streamName,
+      dvr: dvrStatus
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get DVR configuration for application
+router.get('/dvr/config/:appName', authenticate, async (req: AuthRequest, res: Response, next) => {
+  try {
+    const { appName } = req.params;
+    const dvrConfig = await omeClient.getDvrConfiguration('default', appName);
+    res.json({
+      appName,
+      dvrConfiguration: dvrConfig
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Create signed policy for stream access
+router.post('/:streamName/signed-policy', authenticate, requireOperator, async (req: AuthRequest, res: Response, next) => {
+  try {
+    const { streamName } = req.params;
+    const { expiresIn = 3600 } = req.body; // Default 1 hour
+    const channel = await prisma.channel.findFirst({ where: { streamKey: streamName } });
+    
+    const policy = await omeClient.createSignedPolicy(
+      streamName,
+      expiresIn,
+      'default',
+      channel?.appName
+    );
+    
+    auditLog(req.user!.id, 'SIGNED_POLICY_CREATED', 'Security', { streamName, expiresIn }, req.ip, req.get('user-agent'));
+    
+    res.json({
+      message: 'Signed policy created successfully',
+      streamName,
+      policy,
+      expiresIn
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get admission webhooks configuration
+router.get('/security/admission-webhooks', authenticate, async (req: AuthRequest, res: Response, next) => {
+  try {
+    const { vhostName = 'default' } = req.query;
+    const webhooks = await omeClient.getAdmissionWebhooks(vhostName as string);
+    res.json({
+      vhostName,
+      admissionWebhooks: webhooks
     });
   } catch (error) {
     next(error);

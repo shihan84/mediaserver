@@ -83,6 +83,38 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response, next) =
   }
 });
 
+// Get channel input URLs (ingest URLs)
+router.get('/:id/inputs', authenticate, async (req: AuthRequest, res: Response, next) => {
+  try {
+    const { id } = req.params;
+    const channel = await prisma.channel.findUnique({
+      where: { id }
+    });
+
+    if (!channel) {
+      throw new AppError('Channel not found', 404, 'CHANNEL_NOT_FOUND');
+    }
+
+    const streamName = channel.streamKey || channel.name;
+    const appName = channel.appName || 'app';
+
+    const inputUrls = outputUrlService.generateInputUrls(streamName, appName);
+
+    res.json({
+      channel: {
+        id: channel.id,
+        name: channel.name,
+        streamKey: channel.streamKey,
+        appName: channel.appName,
+        isActive: channel.isActive
+      },
+      inputs: inputUrls
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Get channel output URLs
 router.get('/:id/outputs', authenticate, async (req: AuthRequest, res: Response, next) => {
   try {

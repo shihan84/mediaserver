@@ -8,6 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { useAuthStore } from '../store/authStore';
 import toast from 'react-hot-toast';
 import { formatDate } from '../lib/utils';
+import { ChannelDetailModal } from '../components/ChannelDetailModal';
+import { Settings } from 'lucide-react';
 
 export function ChannelsPage() {
   const { user } = useAuthStore();
@@ -29,6 +31,7 @@ export function ChannelsPage() {
   const [editVodFallbackEnabled, setEditVodFallbackEnabled] = useState(false);
   const [editVodFallbackFiles, setEditVodFallbackFiles] = useState<string[]>([]);
   const [editVodFallbackDelay, setEditVodFallbackDelay] = useState(5);
+  const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['channels'],
@@ -467,6 +470,15 @@ export function ChannelsPage() {
                       <TableCell>
                         {canModify && (
                           <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setSelectedChannelId(channel.id)}
+                              title="View channel URLs and details"
+                            >
+                              <Settings className="w-4 h-4 mr-1" />
+                              URLs
+                            </Button>
                             <Button
                               variant="outline"
                               size="sm"

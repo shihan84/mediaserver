@@ -16,6 +16,7 @@ import { PushPublishingPage } from './pages/PushPublishingPage';
 import { ScheduledChannelsPage } from './pages/ScheduledChannelsPage';
 import { OMEManagementPage } from './pages/OMEManagementPage';
 import { DistributorsPage } from './pages/DistributorsPage';
+import { EventMonitoringPage } from './pages/EventMonitoringPage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
@@ -47,6 +48,7 @@ function App() {
         <Route path="push-publishing" element={<PushPublishingPage />} />
         <Route path="scheduled-channels" element={<ScheduledChannelsPage />} />
         <Route path="ome-management" element={<OMEManagementPage />} />
+        <Route path="event-monitoring" element={<EventMonitoringPage />} />
         <Route path="distributors/:channelId" element={<DistributorsPage />} />
         <Route path="distributors" element={<DistributorsPage />} />
       </Route>

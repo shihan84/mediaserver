@@ -215,6 +215,209 @@ class OMEClient {
     const result = await this.request('GET', `/v1/vhosts/${vhostName}/apps/${appName}/outputProfiles`);
     return result.response || result;
   }
+
+  // Enhanced Stream Statistics & Metrics (https://docs.ovenmediaengine.com/rest-api)
+  
+  /**
+   * Get real-time statistics for a stream
+   * Returns detailed ingress/egress statistics
+   */
+  async getStreamStats(streamName: string, vhostName: string = 'default', appName: string = 'app') {
+    try {
+      const result = await this.request('GET', `/v1/stats/current/vhosts/${vhostName}/apps/${appName}/streams/${streamName}`);
+      return result.response || result;
+    } catch (error: any) {
+      logger.warn('Could not fetch stream stats', { streamName, vhostName, appName, error: error.message });
+      return null;
+    }
+  }
+
+  /**
+   * Get stream tracks information (video/audio codec, bitrate, resolution, etc.)
+   */
+  async getStreamTracks(streamName: string, vhostName: string = 'default', appName: string = 'app') {
+    try {
+      const result = await this.request('GET', `/v1/vhosts/${vhostName}/apps/${appName}/streams/${streamName}/tracks`);
+      return result.response || result;
+    } catch (error: any) {
+      logger.warn('Could not fetch stream tracks', { streamName, vhostName, appName, error: error.message });
+      return null;
+    }
+  }
+
+  /**
+   * Get detailed stream statistics (ingress/egress)
+   */
+  async getStreamStatistics(streamName: string, vhostName: string = 'default', appName: string = 'app') {
+    try {
+      const result = await this.request('GET', `/v1/vhosts/${vhostName}/apps/${appName}/streams/${streamName}/stats`);
+      return result.response || result;
+    } catch (error: any) {
+      logger.warn('Could not fetch stream statistics', { streamName, vhostName, appName, error: error.message });
+      return null;
+    }
+  }
+
+  /**
+   * Get stream health status and quality metrics
+   */
+  async getStreamHealth(streamName: string, vhostName: string = 'default', appName: string = 'app') {
+    try {
+      const stream = await this.getStream(streamName);
+      const stats = await this.getStreamStatistics(streamName, vhostName, appName);
+      
+      return {
+        state: stream?.state || 'unknown',
+        connected: stream?.state === 'connected' || stream?.state === 'published',
+        quality: {
+          bitrate: stats?.ingress?.bitrate || null,
+          packetLoss: stats?.ingress?.packetLoss || null,
+          latency: stats?.ingress?.rtt || null,
+          viewers: stats?.egress?.totalViewers || 0
+        },
+        stream: stream,
+        statistics: stats
+      };
+    } catch (err: any) {
+      logger.warn('Could not determine stream health', { streamName, error: err.message });
+      return { 
+        state: 'unknown', 
+        connected: false,
+        quality: {}
+      };
+    }
+  }
+
+  /**
+   * Get real-time viewer count per protocol
+   */
+  async getViewerCount(streamName: string, vhostName: string = 'default', appName: string = 'app') {
+    try {
+      const stats = await this.getStreamStats(streamName, vhostName, appName);
+      if (!stats) return null;
+
+      return {
+        total: stats.viewers?.total || stats.viewers || 0,
+        webrtc: stats.viewers?.webrtc || 0,
+        hls: stats.viewers?.hls || 0,
+        llhls: stats.viewers?.llhls || 0,
+        dash: stats.viewers?.dash || 0,
+        srt: stats.viewers?.srt || 0
+      };
+    } catch (error: any) {
+      logger.warn('Could not fetch viewer count', { streamName, error: error.message });
+      return null;
+    }
+  }
+
+  // Event Monitoring (https://docs.ovenmediaengine.com/rest-api)
+  
+  /**
+   * Get events from OME
+   * Events include: application creation/deletion, stream start/stop, REST API calls
+   */
+  async getEvents(vhostName: string = 'default', limit: number = 100, offset: number = 0) {
+    try {
+      const result = await this.request('GET', `/v1/vhosts/${vhostName}/events?limit=${limit}&offset=${offset}`);
+      return result.response || result;
+    } catch (error: any) {
+      logger.warn('Could not fetch events', { vhostName, error: error.message });
+      return null;
+    }
+  }
+
+  /**
+   * Get event webhook configuration
+   */
+  async getEventWebhooks(vhostName: string = 'default') {
+    try {
+      const vhost = await this.getVirtualHost(vhostName);
+      return vhost?.eventWebhooks || null;
+    } catch (error: any) {
+      logger.warn('Could not fetch event webhooks', { vhostName, error: error.message });
+      return null;
+    }
+  }
+
+  // DVR (Digital Video Recorder) Functionality
+  
+  /**
+   * Get DVR configuration for an application
+   * DVR allows live rewind and time-shifted playback
+   */
+  async getDvrConfiguration(vhostName: string = 'default', appName: string = 'app') {
+    try {
+      const app = await this.getApplication(vhostName, appName);
+      return app?.dvr || app?.dvrConfiguration || null;
+    } catch (error: any) {
+      logger.warn('Could not fetch DVR configuration', { vhostName, appName, error: error.message });
+      return null;
+    }
+  }
+
+  /**
+   * Get DVR status for a stream (available rewind window)
+   */
+  async getDvrStatus(streamName: string, vhostName: string = 'default', appName: string = 'app') {
+    try {
+      // Try to get DVR information from stream stats
+      const stream = await this.getStream(streamName, vhostName, appName);
+      const stats = await this.getStreamStatistics(streamName, vhostName, appName);
+      
+      return {
+        enabled: stream?.dvrEnabled || false,
+        window: stream?.dvrWindow || null, // DVR window in seconds
+        available: stream?.dvrAvailable || false,
+        stats: stats
+      };
+    } catch (error: any) {
+      logger.warn('Could not fetch DVR status', { streamName, error: error.message });
+      return {
+        enabled: false,
+        window: null,
+        available: false
+      };
+    }
+  }
+
+  // Advanced Security Features
+  
+  /**
+   * Create a signed policy for stream access
+   * Signed policies allow time-limited access to streams
+   */
+  async createSignedPolicy(
+    streamName: string,
+    expiresIn: number, // seconds until expiration
+    vhostName: string = 'default',
+    appName: string = 'app'
+  ) {
+    try {
+      // OME signed policy creation endpoint
+      const result = await this.request('POST', `/v1/vhosts/${vhostName}/apps/${appName}/streams/${streamName}/signed-policy`, {
+        expiresIn,
+        timestamp: Math.floor(Date.now() / 1000)
+      });
+      return result.response || result;
+    } catch (error: any) {
+      logger.warn('Could not create signed policy', { streamName, error: error.message });
+      throw error;
+    }
+  }
+
+  /**
+   * Get admission webhook configuration
+   * Admission webhooks allow custom access control logic
+   */
+  async getAdmissionWebhooks(vhostName: string = 'default') {
+    try {
+      const vhost = await this.getVirtualHost(vhostName);
+      return vhost?.admissionWebhooks || null;
+    } catch (error: any) {
+      logger.warn('Could not fetch admission webhooks', { vhostName, error: error.message });
+      return null;
+    }
+  }
 }
 
 export const omeClient = new OMEClient();

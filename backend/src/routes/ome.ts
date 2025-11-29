@@ -107,5 +107,42 @@ router.get('/streams/:streamName/thumbnail', authenticate, async (req: AuthReque
   }
 });
 
+// Event Monitoring endpoints
+router.get('/events', authenticate, async (req: AuthRequest, res: Response, next) => {
+  try {
+    const { vhostName = 'default', limit = '100', offset = '0' } = req.query;
+
+    const events = await omeClient.getEvents(
+      vhostName as string,
+      parseInt(limit as string),
+      parseInt(offset as string)
+    );
+
+    res.json({
+      events: events || [],
+      vhostName,
+      limit: parseInt(limit as string),
+      offset: parseInt(offset as string)
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/events/webhooks', authenticate, async (req: AuthRequest, res: Response, next) => {
+  try {
+    const { vhostName = 'default' } = req.query;
+
+    const webhooks = await omeClient.getEventWebhooks(vhostName as string);
+
+    res.json({
+      webhooks: webhooks || null,
+      vhostName
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export { router as omeRouter };
 

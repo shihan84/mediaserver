@@ -31,6 +31,7 @@ const navigation = [
   { name: 'Scheduled Channels', href: '/scheduled-channels', icon: Clock },
   { name: 'Distributors', href: '/distributors', icon: Share2 },
   { name: 'OME Management', href: '/ome-management', icon: Server },
+  { name: 'Event Monitoring', href: '/event-monitoring', icon: Activity },
   { name: 'Tasks', href: '/tasks', icon: ListTodo },
   { name: 'Chat', href: '/chat', icon: MessageSquare },
   { name: 'Settings', href: '/settings', icon: Settings },
