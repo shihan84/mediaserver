@@ -46,6 +46,7 @@ export function ChannelsPage() {
       setShowCreateForm(false);
       setChannelName('');
       setChannelDescription('');
+      setChannelAppName('app');
       setChannelStreamKey('');
       setVodFallbackEnabled(false);
       setVodFallbackFiles([]);

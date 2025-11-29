@@ -312,7 +312,7 @@ function ChannelStreamCard({
   onCopy: (text: string, label: string) => void;
   expandedStreams: Set<string>;
   onToggleStream: (streamName: string) => void;
-  getRtmpUrl: (streamKey: string) => string;
+  getRtmpUrl: (streamKey: string, appName?: string) => string;
 }) {
   const [showDetails, setShowDetails] = useState(false);
   
