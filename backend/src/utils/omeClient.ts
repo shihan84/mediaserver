@@ -1,7 +1,13 @@
 import axios from 'axios';
 import { logger } from './logger';
 
-const OME_API_URL = process.env.OME_API_URL || 'http://localhost:8081';
+// Fix IPv6/IPv4 issue: Use 127.0.0.1 instead of localhost to force IPv4
+let OME_API_URL = process.env.OME_API_URL || 'http://127.0.0.1:8081';
+// Replace localhost with 127.0.0.1 to avoid IPv6 connection issues
+if (OME_API_URL.includes('localhost')) {
+  OME_API_URL = OME_API_URL.replace('localhost', '127.0.0.1');
+}
+
 const OME_API_KEY = process.env.OME_API_KEY || '';
 
 class OMEClient {
@@ -11,6 +17,7 @@ class OMEClient {
   constructor() {
     this.baseURL = OME_API_URL;
     this.apiKey = OME_API_KEY;
+    logger.info('OMEClient initialized', { baseURL: this.baseURL });
   }
 
   private async request(method: string, endpoint: string, data?: any) {
