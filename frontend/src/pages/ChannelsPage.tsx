@@ -39,7 +39,7 @@ export function ChannelsPage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: { name: string; description?: string; streamKey?: string; vodFallbackEnabled?: boolean; vodFallbackFiles?: string[]; vodFallbackDelay?: number }) => channelsApi.create(data),
+    mutationFn: (data: { name: string; description?: string; appName?: string; streamKey?: string; vodFallbackEnabled?: boolean; vodFallbackFiles?: string[]; vodFallbackDelay?: number }) => channelsApi.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['channels'] });
       toast.success('Channel created successfully');
@@ -58,7 +58,7 @@ export function ChannelsPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: { name: string; description?: string; streamKey?: string; vodFallbackEnabled?: boolean; vodFallbackFiles?: string[]; vodFallbackDelay?: number } }) => 
+    mutationFn: ({ id, data }: { id: string; data: { name: string; description?: string; appName?: string; streamKey?: string; vodFallbackEnabled?: boolean; vodFallbackFiles?: string[]; vodFallbackDelay?: number } }) => 
       channelsApi.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['channels'] });
