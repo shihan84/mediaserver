@@ -27,7 +27,13 @@ export const errorHandler = (
     stack: err.stack,
     path: req.path,
     method: req.method,
-    ip: req.ip
+    ip: req.ip,
+    body: req.body,
+    errorDetails: err instanceof Error ? {
+      name: err.name,
+      message: err.message,
+      stack: err.stack
+    } : err
   });
 
   res.status(statusCode).json({

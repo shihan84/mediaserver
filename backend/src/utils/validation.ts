@@ -166,6 +166,17 @@ export const updateChatResponseSchema = z.object({
 // Validation helper
 export function validateRequest<T extends z.ZodTypeAny>(schema: T) {
   return (data: unknown): z.infer<T> => {
-    return schema.parse(data);
+    try {
+      return schema.parse(data);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const formatted = error.errors.map((e) => ({
+          path: e.path.join('.'),
+          message: e.message,
+        }));
+        throw new Error(`Validation error: ${JSON.stringify(formatted)}`);
+      }
+      throw error;
+    }
   };
 }

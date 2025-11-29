@@ -147,7 +147,9 @@ router.get('/:id/outputs', authenticate, async (req: AuthRequest, res: Response,
 // Create channel
 router.post('/', authenticate, requireOperator, async (req: AuthRequest, res: Response, next) => {
   try {
+    logger.info('Creating channel', { body: req.body });
     const data = validateRequest(createChannelSchema)(req.body);
+    logger.info('Channel data validated', { data });
     
     // Check if streamKey already exists
     const existingChannel = await prisma.channel.findFirst({
