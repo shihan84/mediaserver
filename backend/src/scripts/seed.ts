@@ -27,21 +27,21 @@ async function main() {
       }
     });
 
-    console.log('✅ Admin user created:', {
+    console.log('[OK] Admin user created:', {
       email: admin.email,
       username: admin.username,
       role: admin.role
     });
   } else {
-    console.log('ℹ️  Admin user already exists');
+    console.log('[INFO] Admin user already exists');
   }
 
-  console.log('✅ Seeding completed!');
+  console.log('[OK] Seeding completed!');
 }
 
 main()
   .catch((e) => {
-    console.error('❌ Seeding failed:', e);
+    console.error('[ERROR] Seeding failed:', e);
     process.exit(1);
   })
   .finally(async () => {

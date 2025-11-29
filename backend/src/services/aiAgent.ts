@@ -232,10 +232,10 @@ What specific issue are you experiencing?`;
     if (lowerMessage.includes('status') || lowerMessage.includes('how many') || lowerMessage.includes('count')) {
       return `System Status Summary:
 
-📊 **Channels**: ${systemContext.channels} total, ${systemContext.activeChannels} active
-📅 **Schedules**: ${systemContext.schedules} total, ${systemContext.activeSchedules} active
-📋 **Tasks**: ${systemContext.tasks} total, ${systemContext.pendingTasks} pending
-🎯 **SCTE-35 Markers**: ${systemContext.scte35Markers} configured
+**Channels**: ${systemContext.channels} total, ${systemContext.activeChannels} active
+**Schedules**: ${systemContext.schedules} total, ${systemContext.activeSchedules} active
+**Tasks**: ${systemContext.tasks} total, ${systemContext.pendingTasks} pending
+**SCTE-35 Markers**: ${systemContext.scte35Markers} configured
 
 Everything looks good! Need help with any specific operation?`;
     }
