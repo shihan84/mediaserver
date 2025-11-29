@@ -104,18 +104,19 @@ router.get('/:id/outputs', authenticate, async (req: AuthRequest, res: Response,
 
     // Use streamKey or channel name for URL generation
     const streamName = channel.streamKey || channel.name;
+    const appName = channel.appName || 'app';
 
     // Get output profiles from OME
     let outputProfiles: string[] = [];
     try {
-      const profiles = await omeClient.getOutputProfiles();
+      const profiles = await omeClient.getOutputProfiles(channel.appName || 'app');
       outputProfiles = profiles?.outputProfiles?.map((p: any) => p.name) || [];
     } catch (err) {
       logger.warn('Could not fetch output profiles', { channelId: channel.id });
     }
 
-    // Generate OME output URLs
-    const omeOutputs = outputUrlService.generateOutputUrls(streamName, outputProfiles.length > 0 ? outputProfiles : undefined);
+    // Generate OME output URLs using channel's appName
+    const omeOutputs = outputUrlService.generateOutputUrls(streamName, outputProfiles.length > 0 ? outputProfiles : undefined, appName);
 
     // Get distributor URLs (CDN/manual URLs)
     const distributorUrls = channel.distributors.map((dist) => ({

@@ -112,8 +112,9 @@ export function StreamsPage() {
     toast.success(`${label} copied to clipboard`);
   };
 
-  const getRtmpUrl = (streamKey: string) => {
-    return `rtmp://${OME_HOST}:1935/app/${streamKey}`;
+  const getRtmpUrl = (streamKey: string, appName?: string) => {
+    const app = appName || 'app';
+    return `rtmp://${OME_HOST}:1935/${app}/${streamKey}`;
   };
 
   return (
@@ -218,12 +219,12 @@ export function StreamsPage() {
                         <div>
                           <span className="font-medium">RTMP URL:</span>
                           <div className="flex items-center gap-2 mt-1">
-                            <code className="flex-1 px-2 py-1 bg-muted rounded text-xs">{getRtmpUrl(channel.streamKey)}</code>
+                            <code className="flex-1 px-2 py-1 bg-muted rounded text-xs">{getRtmpUrl(channel.streamKey, channel.appName)}</code>
                             <Button
                               variant="ghost"
                               size="sm"
                               className="h-7"
-                              onClick={() => copyToClipboard(getRtmpUrl(channel.streamKey), 'RTMP URL')}
+                              onClick={() => copyToClipboard(getRtmpUrl(channel.streamKey, channel.appName), 'RTMP URL')}
                             >
                               <Copy className="w-3 h-3" />
                             </Button>
@@ -355,12 +356,12 @@ function ChannelStreamCard({
               <div className="md:col-span-2">
                 <span className="font-medium text-muted-foreground">RTMP URL:</span>
                 <div className="flex items-center gap-2 mt-1">
-                  <code className="flex-1 px-2 py-1 bg-muted rounded text-xs">{getRtmpUrl(channel.streamKey)}</code>
+                  <code className="flex-1 px-2 py-1 bg-muted rounded text-xs">{getRtmpUrl(channel.streamKey, channel.appName)}</code>
                   <Button
                     variant="ghost"
                     size="sm"
                     className="h-7"
-                    onClick={() => onCopy(getRtmpUrl(channel.streamKey), 'RTMP URL')}
+                    onClick={() => onCopy(getRtmpUrl(channel.streamKey, channel.appName), 'RTMP URL')}
                   >
                     <Copy className="w-3 h-3" />
                   </Button>

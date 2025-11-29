@@ -64,6 +64,7 @@ export const createPrerollTemplateSchema = z.object({
 export const createChannelSchema = z.object({
   name: z.string().min(1).max(255),
   description: z.string().optional(),
+  appName: z.string().min(1).max(255).optional().default('app'), // OME application name
   streamKey: z.string().min(1).max(255),
   config: z.record(z.any()).optional(),
   metadata: z.record(z.any()).optional(),

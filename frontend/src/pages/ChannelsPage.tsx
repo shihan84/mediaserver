@@ -15,6 +15,7 @@ export function ChannelsPage() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [channelName, setChannelName] = useState('');
   const [channelDescription, setChannelDescription] = useState('');
+  const [channelAppName, setChannelAppName] = useState('app');
   const [channelStreamKey, setChannelStreamKey] = useState('');
   const [vodFallbackEnabled, setVodFallbackEnabled] = useState(false);
   const [vodFallbackFiles, setVodFallbackFiles] = useState<string[]>([]);
@@ -23,6 +24,7 @@ export function ChannelsPage() {
   const [editingChannelId, setEditingChannelId] = useState<string | null>(null);
   const [editChannelName, setEditChannelName] = useState('');
   const [editChannelDescription, setEditChannelDescription] = useState('');
+  const [editChannelAppName, setEditChannelAppName] = useState('app');
   const [editChannelStreamKey, setEditChannelStreamKey] = useState('');
   const [editVodFallbackEnabled, setEditVodFallbackEnabled] = useState(false);
   const [editVodFallbackFiles, setEditVodFallbackFiles] = useState<string[]>([]);
@@ -102,6 +104,7 @@ export function ChannelsPage() {
     createMutation.mutate({
       name: channelName.trim(),
       description: channelDescription.trim() || undefined,
+      appName: channelAppName.trim() || 'app',
       streamKey: channelStreamKey.trim(),
       vodFallbackEnabled,
       vodFallbackFiles: vodFallbackEnabled ? vodFallbackFiles : undefined,
@@ -150,6 +153,7 @@ export function ChannelsPage() {
       data: {
         name: editChannelName.trim(),
         description: editChannelDescription.trim() || undefined,
+        appName: editChannelAppName.trim() || 'app',
         streamKey: editChannelStreamKey.trim(),
         vodFallbackEnabled: editVodFallbackEnabled,
         vodFallbackFiles: editVodFallbackEnabled ? editVodFallbackFiles : undefined,
@@ -221,6 +225,22 @@ export function ChannelsPage() {
                   onChange={(e) => setChannelDescription(e.target.value)}
                   placeholder="Enter channel description (optional)"
                 />
+              </div>
+              <div>
+                <label htmlFor="channelAppName" className="block text-sm font-medium mb-2">
+                  OME Application Name *
+                </label>
+                <Input
+                  id="channelAppName"
+                  type="text"
+                  value={channelAppName}
+                  onChange={(e) => setChannelAppName(e.target.value)}
+                  placeholder="app (default)"
+                  required
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  OME application name where the stream will be ingested (e.g., "app", "live")
+                </p>
               </div>
               <div>
                 <label htmlFor="channelStreamKey" className="block text-sm font-medium mb-2">
@@ -350,6 +370,7 @@ export function ChannelsPage() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Description</TableHead>
+                <TableHead>App Name</TableHead>
                 <TableHead>Stream Key</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Created</TableHead>

@@ -1,15 +1,19 @@
 import { logger } from '../utils/logger';
 
-interface OMEConfig {
-  publicHost: string;
-  publicPort: number;
-  publicPortHttp: number;
-  srtPort: number;
-  webrtcPort: number;
-  vhost: string;
-  app: string;
-  useHttps: boolean;
-}
+    interface OMEConfig {
+      publicHost: string;
+      publicPort: number;
+      publicPortHttp: number;
+      srtPort: number;
+      webrtcPort: number;
+      vhost: string;
+      app: string;
+      useHttps: boolean;
+    }
+
+    interface GenerateUrlsOptions {
+      appName?: string; // Override default app name
+    }
 
 /**
  * Service to generate OME output URLs for streams
@@ -35,7 +39,7 @@ class OutputUrlService {
   /**
    * Generate all output URLs for a stream
    */
-  generateOutputUrls(streamName: string, outputProfiles?: string[]): {
+      generateOutputUrls(streamName: string, outputProfiles?: string[], appName?: string): {
     llhls: string;
     hls: string;
     dash: string;
@@ -52,7 +56,9 @@ class OutputUrlService {
     const protocol = this.config.useHttps ? 'https' : 'http';
     const baseUrl = `${protocol}://${this.config.publicHost}:${this.config.publicPort}`;
     const baseUrlHttp = `http://${this.config.publicHost}:${this.config.publicPortHttp}`;
-    const streamPath = `${this.config.vhost}/${this.config.app}/${streamName}`;
+    // Use provided appName or default from config
+    const app = appName || this.config.app;
+    const streamPath = `${this.config.vhost}/${app}/${streamName}`;
 
     const outputs = {
       llhls: `${baseUrl}/${streamPath}/llhls.m3u8`,

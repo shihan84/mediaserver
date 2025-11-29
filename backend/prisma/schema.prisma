@@ -132,6 +132,7 @@ model Channel {
   id                 String   @id @default(uuid())
   name               String   @unique
   description        String?
+  appName            String   @default("app") // OME application name (default: "app")
   streamKey          String   @unique
   isActive           Boolean  @default(true)
   config             Json?
@@ -147,6 +148,7 @@ model Channel {
 
   @@index([name])
   @@index([isActive])
+  @@index([appName])
 }
 
 model Distributor {
