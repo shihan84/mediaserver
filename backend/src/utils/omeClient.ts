@@ -62,16 +62,21 @@ class OMEClient {
       
       // Fetch full details for each stream
       if (streamNames.length > 0) {
-        const streamPromises = streamNames.map((streamName: string) => 
-          this.getStream(streamName).catch((err) => {
+        const streamPromises = streamNames.map(async (streamName: string) => {
+          try {
+            const streamDetail = await this.getStream(streamName);
+            logger.debug('Fetched stream detail', { streamName, hasResponse: !!streamDetail });
+            return streamDetail;
+          } catch (err: any) {
             logger.warn('Failed to fetch stream details', { streamName, error: err.message });
             // Return minimal stream object so it still shows up in the list
             return { name: streamName, state: 'unknown', input: { sourceType: 'Unknown' } };
-          })
-        );
+          }
+        });
         const streams = await Promise.all(streamPromises);
-        logger.info('Fetched stream details', { count: streams.length, streams: streams.map((s: any) => s.name) });
-        return streams;
+        logger.info('Fetched stream details', { count: streams.length, streams: streams.map((s: any) => s?.name || 'unknown') });
+        // Filter out any null/undefined streams
+        return streams.filter((s: any) => s && s.name);
       }
       
       logger.info('No streams found in OME');
