@@ -1,0 +1,230 @@
+***** Crash dump *****
+OvenMediaEngine v0.19.0 (v0.19.0-162-g9ae841cf) received signal 13 (SIGPIPE)
+- OS: Linux x86_64 - 6.8.0-86-generic, #87-Ubuntu SMP PREEMPT_DYNAMIC Mon Sep 22 18:03:36 UTC 2025
+- Time: 2025-11-29T17:05:45+0100, PID: 751049, TID: 751049 (OvenMediaEngine)
+- Stack trace
+#0   /lib/x86_64-linux-gnu/libc.so.6     0x7fb154a45330 ? + 0x45330
+#1   /lib/x86_64-linux-gnu/libc.so.6     0x7fb154b1c5a4 __write + 0x14
+#2   /lib/x86_64-linux-gnu/libc.so.6     0x7fb154a93975 _IO_file_write + 0x35
+#3   /lib/x86_64-linux-gnu/libc.so.6     0x7fb154a92571 _IO_do_write + 0xb1
+#4   /lib/x86_64-linux-gnu/libc.so.6     0x7fb154a930c0 _IO_file_sync + 0xb0
+#5   /lib/x86_64-linux-gnu/libc.so.6     0x7fb154a85837 fflush + 0x47
+#6   /usr/bin/OvenMediaEngine            0x5ec33723a37e ? + 0x35c37e
+#7   /usr/bin/OvenMediaEngine            0x5ec337237fc6 ? + 0x359fc6
+#8   /usr/bin/OvenMediaEngine            0x5ec336ff7ea2 ? + 0x119ea2
+#9   /usr/bin/OvenMediaEngine            0x5ec336fe78f7 ? + 0x1098f7
+#10  /lib/x86_64-linux-gnu/libc.so.6     0x7fb154a2a1ca ? + 0x2a1ca
+#11  /lib/x86_64-linux-gnu/libc.so.6     0x7fb154a2a28b __libc_start_main + 0x8b
+#12  /usr/bin/OvenMediaEngine            0x5ec336ff7975 ? + 0x119975
+- Registers
+RAX   : 0xffffffffffffffe0     -32
+RBX   : 0x8b                   139
+RCX   : 0x7fb154b1c5a4         140399606875556
+RDX   : 0x8b                   139
+RSI   : 0x7fb153e5b000         140399593500672
+RDI   : 0x1                    1
+RBP   : 0x7ffe0ae16390         140729080963984
+RSP   : 0x7ffe0ae16368         140729080963944
+R8    : 0x73                   115
+R9    : 0x0                    0
+R10   : 0xffffffff             4294967295
+R11   : 0x202                  514
+R12   : 0x8b                   139
+R13   : 0x7fb153e5b000         140399593500672
+R14   : 0x7fb154c045c0         140399607825856
+R15   : 0x7fb154c01ee0         140399607815904
+RIP   : 0x7fb154b1c5a4         140399606875556
+EFLAGS: 0x202                  [ IF ]
+- Module maps
+5ec336ede000-5ec336f57000 r--p 00000000 08:01 2359299                    /usr/share/ovenmediaengine/OvenMediaEngine
+5ec336f57000-5ec337677000 r-xp 00079000 08:01 2359299                    /usr/share/ovenmediaengine/OvenMediaEngine
+5ec337677000-5ec3378e4000 r--p 00799000 08:01 2359299                    /usr/share/ovenmediaengine/OvenMediaEngine
+5ec3378e4000-5ec337912000 r--p 00a06000 08:01 2359299                    /usr/share/ovenmediaengine/OvenMediaEngine
+5ec337912000-5ec337913000 rw-p 00a34000 08:01 2359299                    /usr/share/ovenmediaengine/OvenMediaEngine
+5ec337913000-5ec33791c000 rw-p 00000000 00:00 0 
+7fb153a00000-7fb154200000 rw-p 00000000 00:00 0 
+7fb15426d000-7fb1542a2000 r--p 00000000 08:01 789113                     /opt/ovenmediaengine/lib/libopenh264.so.2.4.0
+7fb1542a2000-7fb1543d1000 r-xp 00035000 08:01 789113                     /opt/ovenmediaengine/lib/libopenh264.so.2.4.0
+7fb1543d1000-7fb1543fb000 r--p 00164000 08:01 789113                     /opt/ovenmediaengine/lib/libopenh264.so.2.4.0
+7fb1543fb000-7fb1543fe000 r--p 0018e000 08:01 789113                     /opt/ovenmediaengine/lib/libopenh264.so.2.4.0
+7fb1543fe000-7fb154400000 rw-p 00191000 08:01 789113                     /opt/ovenmediaengine/lib/libopenh264.so.2.4.0
+7fb154400000-7fb154406000 r--p 00000000 08:01 788432                     /opt/ovenmediaengine/lib/libx264.so.165
+7fb154406000-7fb1545ef000 r-xp 00006000 08:01 788432                     /opt/ovenmediaengine/lib/libx264.so.165
+7fb1545ef000-7fb15462b000 r--p 001ef000 08:01 788432                     /opt/ovenmediaengine/lib/libx264.so.165
+7fb15462b000-7fb15462d000 r--p 0022a000 08:01 788432                     /opt/ovenmediaengine/lib/libx264.so.165
+7fb15462d000-7fb15462e000 rw-p 0022c000 08:01 788432                     /opt/ovenmediaengine/lib/libx264.so.165
+7fb15462e000-7fb154727000 rw-p 00000000 00:00 0 
+7fb154772000-7fb15477e000 r--p 00000000 08:01 789978                     /opt/ovenmediaengine/lib/libggml-cpu.so
+7fb15477e000-7fb154810000 r-xp 0000c000 08:01 789978                     /opt/ovenmediaengine/lib/libggml-cpu.so
+7fb154810000-7fb15482b000 r--p 0009e000 08:01 789978                     /opt/ovenmediaengine/lib/libggml-cpu.so
+7fb15482b000-7fb15482c000 r--p 000b9000 08:01 789978                     /opt/ovenmediaengine/lib/libggml-cpu.so
+7fb15482c000-7fb15482d000 rw-p 000ba000 08:01 789978                     /opt/ovenmediaengine/lib/libggml-cpu.so
+7fb15482d000-7fb1548b1000 rw-p 00000000 00:00 0 
+7fb1548b1000-7fb1548b6000 r--p 00000000 08:01 789122                     /opt/ovenmediaengine/lib/libfdk-aac.so.2.0.2
+7fb1548b6000-7fb1549a5000 r-xp 00005000 08:01 789122                     /opt/ovenmediaengine/lib/libfdk-aac.so.2.0.2
+7fb1549a5000-7fb1549f8000 r--p 000f4000 08:01 789122                     /opt/ovenmediaengine/lib/libfdk-aac.so.2.0.2
+7fb1549f8000-7fb1549fb000 r--p 00146000 08:01 789122                     /opt/ovenmediaengine/lib/libfdk-aac.so.2.0.2
+7fb1549fb000-7fb1549fc000 rw-p 00149000 08:01 789122                     /opt/ovenmediaengine/lib/libfdk-aac.so.2.0.2
+7fb1549fc000-7fb154a00000 rw-p 00000000 00:00 0 
+7fb154a00000-7fb154a28000 r--p 00000000 08:01 6492                       /usr/lib/x86_64-linux-gnu/libc.so.6
+7fb154a28000-7fb154bb0000 r-xp 00028000 08:01 6492                       /usr/lib/x86_64-linux-gnu/libc.so.6
+7fb154bb0000-7fb154bff000 r--p 001b0000 08:01 6492                       /usr/lib/x86_64-linux-gnu/libc.so.6
+7fb154bff000-7fb154c03000 r--p 001fe000 08:01 6492                       /usr/lib/x86_64-linux-gnu/libc.so.6
+7fb154c03000-7fb154c05000 rw-p 00202000 08:01 6492                       /usr/lib/x86_64-linux-gnu/libc.so.6
+7fb154c05000-7fb154c12000 rw-p 00000000 00:00 0 
+7fb154c40000-7fb154c4b000 r--p 00000000 08:01 30891                      /usr/lib/x86_64-linux-gnu/libgomp.so.1.0.0
+7fb154c4b000-7fb154c87000 r-xp 0000b000 08:01 30891                      /usr/lib/x86_64-linux-gnu/libgomp.so.1.0.0
+7fb154c87000-7fb154c94000 r--p 00047000 08:01 30891                      /usr/lib/x86_64-linux-gnu/libgomp.so.1.0.0
+7fb154c94000-7fb154c95000 r--p 00054000 08:01 30891                      /usr/lib/x86_64-linux-gnu/libgomp.so.1.0.0
+7fb154c95000-7fb154c96000 rw-p 00055000 08:01 30891                      /usr/lib/x86_64-linux-gnu/libgomp.so.1.0.0
+7fb154c96000-7fb154c99000 r--p 00000000 08:01 789593                     /opt/ovenmediaengine/lib/libvpx.so.7.0.0
+7fb154c99000-7fb154d43000 r-xp 00003000 08:01 789593                     /opt/ovenmediaengine/lib/libvpx.so.7.0.0
+7fb154d43000-7fb154d5e000 r--p 000ad000 08:01 789593                     /opt/ovenmediaengine/lib/libvpx.so.7.0.0
+7fb154d5e000-7fb154d5f000 r--p 000c8000 08:01 789593                     /opt/ovenmediaengine/lib/libvpx.so.7.0.0
+7fb154d5f000-7fb154d60000 rw-p 000c9000 08:01 789593                     /opt/ovenmediaengine/lib/libvpx.so.7.0.0
+7fb154d60000-7fb154d63000 r--p 00000000 08:01 797273                     /opt/ovenmediaengine/lib/libswscale.so.6.7.100
+7fb154d63000-7fb154de6000 r-xp 00003000 08:01 797273                     /opt/ovenmediaengine/lib/libswscale.so.6.7.100
+7fb154de6000-7fb154df6000 r--p 00086000 08:01 797273                     /opt/ovenmediaengine/lib/libswscale.so.6.7.100
+7fb154df6000-7fb154df7000 r--p 00096000 08:01 797273                     /opt/ovenmediaengine/lib/libswscale.so.6.7.100
+7fb154df7000-7fb154df8000 rw-p 00097000 08:01 797273                     /opt/ovenmediaengine/lib/libswscale.so.6.7.100
+7fb154df8000-7fb154e00000 rw-p 00000000 00:00 0 
+7fb154e00000-7fb154e9d000 r--p 00000000 08:01 6486                       /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.33
+7fb154e9d000-7fb154fe5000 r-xp 0009d000 08:01 6486                       /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.33
+7fb154fe5000-7fb15506c000 r--p 001e5000 08:01 6486                       /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.33
+7fb15506c000-7fb155077000 r--p 0026b000 08:01 6486                       /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.33
+7fb155077000-7fb15507a000 rw-p 00276000 08:01 6486                       /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.33
+7fb15507a000-7fb15507e000 rw-p 00000000 00:00 0 
+7fb1550a6000-7fb1550a9000 r--p 00000000 08:01 788943                     /opt/ovenmediaengine/lib/libwebp.so.7.1.10
+7fb1550a9000-7fb155100000 r-xp 00003000 08:01 788943                     /opt/ovenmediaengine/lib/libwebp.so.7.1.10
+7fb155100000-7fb155114000 r--p 0005a000 08:01 788943                     /opt/ovenmediaengine/lib/libwebp.so.7.1.10
+7fb155114000-7fb155115000 r--p 0006d000 08:01 788943                     /opt/ovenmediaengine/lib/libwebp.so.7.1.10
+7fb155115000-7fb155116000 rw-p 0006e000 08:01 788943                     /opt/ovenmediaengine/lib/libwebp.so.7.1.10
+7fb155116000-7fb155117000 rw-p 00000000 00:00 0 
+7fb155117000-7fb155127000 r--p 00000000 08:01 6495                       /usr/lib/x86_64-linux-gnu/libm.so.6
+7fb155127000-7fb1551a6000 r-xp 00010000 08:01 6495                       /usr/lib/x86_64-linux-gnu/libm.so.6
+7fb1551a6000-7fb1551fe000 r--p 0008f000 08:01 6495                       /usr/lib/x86_64-linux-gnu/libm.so.6
+7fb1551fe000-7fb1551ff000 r--p 000e7000 08:01 6495                       /usr/lib/x86_64-linux-gnu/libm.so.6
+7fb1551ff000-7fb155200000 rw-p 000e8000 08:01 6495                       /usr/lib/x86_64-linux-gnu/libm.so.6
+7fb155200000-7fb155208000 r--p 00000000 08:01 788996                     /opt/ovenmediaengine/lib/libjemalloc.so.2
+7fb155208000-7fb15529a000 r-xp 00008000 08:01 788996                     /opt/ovenmediaengine/lib/libjemalloc.so.2
+7fb15529a000-7fb1552af000 r--p 0009a000 08:01 788996                     /opt/ovenmediaengine/lib/libjemalloc.so.2
+7fb1552af000-7fb1552b5000 r--p 000af000 08:01 788996                     /opt/ovenmediaengine/lib/libjemalloc.so.2
+7fb1552b5000-7fb1552b6000 rw-p 000b5000 08:01 788996                     /opt/ovenmediaengine/lib/libjemalloc.so.2
+7fb1552b6000-7fb1554c0000 rw-p 00000000 00:00 0 
+7fb1554d8000-7fb1554ed000 r--p 00000000 08:01 789909                     /opt/ovenmediaengine/lib/libwhisper.so.1.8.2
+7fb1554ed000-7fb155548000 r-xp 00015000 08:01 789909                     /opt/ovenmediaengine/lib/libwhisper.so.1.8.2
+7fb155548000-7fb155558000 r--p 00070000 08:01 789909                     /opt/ovenmediaengine/lib/libwhisper.so.1.8.2
+7fb155558000-7fb155559000 r--p 00080000 08:01 789909                     /opt/ovenmediaengine/lib/libwhisper.so.1.8.2
+7fb155559000-7fb15555b000 rw-p 00081000 08:01 789909                     /opt/ovenmediaengine/lib/libwhisper.so.1.8.2
+7fb15555b000-7fb15555c000 rw-p 00000000 00:00 0 
+7fb15555c000-7fb15556e000 r--p 00000000 08:01 790042                     /opt/ovenmediaengine/lib/libggml-base.so
+7fb15556e000-7fb1555de000 r-xp 00012000 08:01 790042                     /opt/ovenmediaengine/lib/libggml-base.so
+7fb1555de000-7fb1555fc000 r--p 00082000 08:01 790042                     /opt/ovenmediaengine/lib/libggml-base.so
+7fb1555fc000-7fb1555fe000 r--p 0009f000 08:01 790042                     /opt/ovenmediaengine/lib/libggml-base.so
+7fb1555fe000-7fb1555ff000 rw-p 000a1000 08:01 790042                     /opt/ovenmediaengine/lib/libggml-base.so
+7fb1555ff000-7fb155600000 rw-p 00000000 00:00 0 
+7fb155600000-7fb1556af000 r--p 00000000 08:01 797508                     /opt/ovenmediaengine/lib/libcrypto.so.3
+7fb1556af000-7fb155935000 r-xp 000af000 08:01 797508                     /opt/ovenmediaengine/lib/libcrypto.so.3
+7fb155935000-7fb155a09000 r--p 00335000 08:01 797508                     /opt/ovenmediaengine/lib/libcrypto.so.3
+7fb155a09000-7fb155a61000 r--p 00409000 08:01 797508                     /opt/ovenmediaengine/lib/libcrypto.so.3
+7fb155a61000-7fb155a64000 rw-p 00461000 08:01 797508                     /opt/ovenmediaengine/lib/libcrypto.so.3
+7fb155a64000-7fb155a67000 rw-p 00000000 00:00 0 
+7fb155a72000-7fb155a7d000 rw-p 00000000 00:00 0 
+7fb155a7d000-7fb155a7e000 r--p 00000000 08:01 788930                     /opt/ovenmediaengine/lib/libsharpyuv.so.0.1.1
+7fb155a7e000-7fb155a82000 r-xp 00001000 08:01 788930                     /opt/ovenmediaengine/lib/libsharpyuv.so.0.1.1
+7fb155a82000-7fb155a83000 r--p 00005000 08:01 788930                     /opt/ovenmediaengine/lib/libsharpyuv.so.0.1.1
+7fb155a83000-7fb155a84000 r--p 00005000 08:01 788930                     /opt/ovenmediaengine/lib/libsharpyuv.so.0.1.1
+7fb155a84000-7fb155a85000 rw-p 00006000 08:01 788930                     /opt/ovenmediaengine/lib/libsharpyuv.so.0.1.1
+7fb155a85000-7fb155a86000 rw-p 00000000 00:00 0 
+7fb155a86000-7fb155a89000 r--p 00000000 08:01 788971                     /opt/ovenmediaengine/lib/libopus.so.0.8.0
+7fb155a89000-7fb155ad0000 r-xp 00003000 08:01 788971                     /opt/ovenmediaengine/lib/libopus.so.0.8.0
+7fb155ad0000-7fb155ae2000 r--p 0004a000 08:01 788971                     /opt/ovenmediaengine/lib/libopus.so.0.8.0
+7fb155ae2000-7fb155ae3000 r--p 0005c000 08:01 788971                     /opt/ovenmediaengine/lib/libopus.so.0.8.0
+7fb155ae3000-7fb155ae4000 rw-p 0005d000 08:01 788971                     /opt/ovenmediaengine/lib/libopus.so.0.8.0
+7fb155ae4000-7fb155ae6000 r--p 00000000 08:01 788566                     /opt/ovenmediaengine/lib/libpcre2-8.so.0.10.4
+7fb155ae6000-7fb155b4f000 r-xp 00002000 08:01 788566                     /opt/ovenmediaengine/lib/libpcre2-8.so.0.10.4
+7fb155b4f000-7fb155b77000 r--p 0006b000 08:01 788566                     /opt/ovenmediaengine/lib/libpcre2-8.so.0.10.4
+7fb155b77000-7fb155b78000 r--p 00092000 08:01 788566                     /opt/ovenmediaengine/lib/libpcre2-8.so.0.10.4
+7fb155b78000-7fb155b79000 rw-p 00093000 08:01 788566                     /opt/ovenmediaengine/lib/libpcre2-8.so.0.10.4
+7fb155b79000-7fb155b97000 r--p 00000000 08:01 797509                     /opt/ovenmediaengine/lib/libssl.so.3
+7fb155b97000-7fb155bfa000 r-xp 0001e000 08:01 797509                     /opt/ovenmediaengine/lib/libssl.so.3
+7fb155bfa000-7fb155c19000 r--p 00081000 08:01 797509                     /opt/ovenmediaengine/lib/libssl.so.3
+7fb155c19000-7fb155c22000 r--p 0009f000 08:01 797509                     /opt/ovenmediaengine/lib/libssl.so.3
+7fb155c22000-7fb155c27000 rw-p 000a8000 08:01 797509                     /opt/ovenmediaengine/lib/libssl.so.3
+7fb155c27000-7fb155c39000 r--p 00000000 08:01 797277                     /opt/ovenmediaengine/lib/libavutil.so.57.28.100
+7fb155c39000-7fb155cca000 r-xp 00012000 08:01 797277                     /opt/ovenmediaengine/lib/libavutil.so.57.28.100
+7fb155cca000-7fb155ce4000 r--p 000a3000 08:01 797277                     /opt/ovenmediaengine/lib/libavutil.so.57.28.100
+7fb155ce4000-7fb155cf0000 r--p 000bd000 08:01 797277                     /opt/ovenmediaengine/lib/libavutil.so.57.28.100
+7fb155cf0000-7fb155cf1000 rw-p 000c9000 08:01 797277                     /opt/ovenmediaengine/lib/libavutil.so.57.28.100
+7fb155cf1000-7fb155e00000 rw-p 00000000 00:00 0 
+7fb155e00000-7fb155e1e000 r--p 00000000 08:01 797261                     /opt/ovenmediaengine/lib/libavcodec.so.59.37.100
+7fb155e1e000-7fb156152000 r-xp 0001e000 08:01 797261                     /opt/ovenmediaengine/lib/libavcodec.so.59.37.100
+7fb156152000-7fb1561eb000 r--p 00352000 08:01 797261                     /opt/ovenmediaengine/lib/libavcodec.so.59.37.100
+7fb1561eb000-7fb156200000 r--p 003ea000 08:01 797261                     /opt/ovenmediaengine/lib/libavcodec.so.59.37.100
+7fb156200000-7fb156201000 rw-p 003ff000 08:01 797261                     /opt/ovenmediaengine/lib/libavcodec.so.59.37.100
+7fb156201000-7fb156375000 rw-p 00000000 00:00 0 
+7fb156376000-7fb15637a000 rw-p 00000000 00:00 0 
+7fb15637a000-7fb15637d000 r--p 00000000 08:01 797269                     /opt/ovenmediaengine/lib/libswresample.so.4.7.100
+7fb15637d000-7fb156392000 r-xp 00003000 08:01 797269                     /opt/ovenmediaengine/lib/libswresample.so.4.7.100
+7fb156392000-7fb156397000 r--p 00018000 08:01 797269                     /opt/ovenmediaengine/lib/libswresample.so.4.7.100
+7fb156397000-7fb156399000 r--p 0001d000 08:01 797269                     /opt/ovenmediaengine/lib/libswresample.so.4.7.100
+7fb156399000-7fb15639a000 rw-p 0001f000 08:01 797269                     /opt/ovenmediaengine/lib/libswresample.so.4.7.100
+7fb15639a000-7fb15639e000 r--p 00000000 08:01 6487                       /usr/lib/x86_64-linux-gnu/libgcc_s.so.1
+7fb15639e000-7fb1563c2000 r-xp 00004000 08:01 6487                       /usr/lib/x86_64-linux-gnu/libgcc_s.so.1
+7fb1563c2000-7fb1563c6000 r--p 00028000 08:01 6487                       /usr/lib/x86_64-linux-gnu/libgcc_s.so.1
+7fb1563c6000-7fb1563c7000 r--p 0002b000 08:01 6487                       /usr/lib/x86_64-linux-gnu/libgcc_s.so.1
+7fb1563c7000-7fb1563c8000 rw-p 0002c000 08:01 6487                       /usr/lib/x86_64-linux-gnu/libgcc_s.so.1
+7fb1563c8000-7fb1563ca000 rw-p 00000000 00:00 0 
+7fb1563ca000-7fb1563cd000 r--p 00000000 08:01 789979                     /opt/ovenmediaengine/lib/libggml.so
+7fb1563cd000-7fb1563d4000 r-xp 00003000 08:01 789979                     /opt/ovenmediaengine/lib/libggml.so
+7fb1563d4000-7fb1563d6000 r--p 0000a000 08:01 789979                     /opt/ovenmediaengine/lib/libggml.so
+7fb1563d6000-7fb1563d7000 r--p 0000b000 08:01 789979                     /opt/ovenmediaengine/lib/libggml.so
+7fb1563d7000-7fb1563d8000 rw-p 0000c000 08:01 789979                     /opt/ovenmediaengine/lib/libggml.so
+7fb1563d8000-7fb1563db000 r--p 00000000 08:01 788036                     /opt/ovenmediaengine/lib/libhiredis.so.1.0.0
+7fb1563db000-7fb1563e7000 r-xp 00003000 08:01 788036                     /opt/ovenmediaengine/lib/libhiredis.so.1.0.0
+7fb1563e7000-7fb1563eb000 r--p 0000f000 08:01 788036                     /opt/ovenmediaengine/lib/libhiredis.so.1.0.0
+7fb1563eb000-7fb1563ec000 r--p 00012000 08:01 788036                     /opt/ovenmediaengine/lib/libhiredis.so.1.0.0
+7fb1563ec000-7fb1563ed000 rw-p 00013000 08:01 788036                     /opt/ovenmediaengine/lib/libhiredis.so.1.0.0
+7fb1563ed000-7fb1563ef000 rw-p 00000000 00:00 0 
+7fb1563ef000-7fb1563f4000 r--p 00000000 08:01 790380                     /opt/ovenmediaengine/lib/libsrtp2.so.1
+7fb1563f4000-7fb156400000 r-xp 00005000 08:01 790380                     /opt/ovenmediaengine/lib/libsrtp2.so.1
+7fb156400000-7fb156404000 r--p 00011000 08:01 790380                     /opt/ovenmediaengine/lib/libsrtp2.so.1
+7fb156404000-7fb156405000 r--p 00014000 08:01 790380                     /opt/ovenmediaengine/lib/libsrtp2.so.1
+7fb156405000-7fb156406000 rw-p 00015000 08:01 790380                     /opt/ovenmediaengine/lib/libsrtp2.so.1
+7fb156406000-7fb156408000 rw-p 00000000 00:00 0 
+7fb156408000-7fb156410000 r--p 00000000 08:01 797253                     /opt/ovenmediaengine/lib/libavfilter.so.8.44.100
+7fb156410000-7fb156428000 r-xp 00008000 08:01 797253                     /opt/ovenmediaengine/lib/libavfilter.so.8.44.100
+7fb156428000-7fb156431000 r--p 00020000 08:01 797253                     /opt/ovenmediaengine/lib/libavfilter.so.8.44.100
+7fb156431000-7fb156436000 r--p 00028000 08:01 797253                     /opt/ovenmediaengine/lib/libavfilter.so.8.44.100
+7fb156436000-7fb156437000 rw-p 0002d000 08:01 797253                     /opt/ovenmediaengine/lib/libavfilter.so.8.44.100
+7fb156437000-7fb15644e000 r--p 00000000 08:01 797257                     /opt/ovenmediaengine/lib/libavformat.so.59.27.100
+7fb15644e000-7fb1564fe000 r-xp 00017000 08:01 797257                     /opt/ovenmediaengine/lib/libavformat.so.59.27.100
+7fb1564fe000-7fb15652f000 r--p 000c7000 08:01 797257                     /opt/ovenmediaengine/lib/libavformat.so.59.27.100
+7fb15652f000-7fb15653c000 r--p 000f7000 08:01 797257                     /opt/ovenmediaengine/lib/libavformat.so.59.27.100
+7fb15653c000-7fb15653d000 rw-p 00104000 08:01 797257                     /opt/ovenmediaengine/lib/libavformat.so.59.27.100
+7fb15653d000-7fb15655d000 r--p 00000000 08:01 788288                     /opt/ovenmediaengine/lib/libsrt.so.1.5.2
+7fb15655d000-7fb156603000 r-xp 00020000 08:01 788288                     /opt/ovenmediaengine/lib/libsrt.so.1.5.2
+7fb156603000-7fb156623000 r--p 000c6000 08:01 788288                     /opt/ovenmediaengine/lib/libsrt.so.1.5.2
+7fb156623000-7fb156624000 r--p 000e5000 08:01 788288                     /opt/ovenmediaengine/lib/libsrt.so.1.5.2
+7fb156624000-7fb156626000 rw-p 000e6000 08:01 788288                     /opt/ovenmediaengine/lib/libsrt.so.1.5.2
+7fb156626000-7fb15662b000 rw-p 00000000 00:00 0 
+7fb15662b000-7fb15662d000 r--p 00000000 08:01 5443                       /usr/lib/x86_64-linux-gnu/libuuid.so.1.3.0
+7fb15662d000-7fb156632000 r-xp 00002000 08:01 5443                       /usr/lib/x86_64-linux-gnu/libuuid.so.1.3.0
+7fb156632000-7fb156633000 r--p 00007000 08:01 5443                       /usr/lib/x86_64-linux-gnu/libuuid.so.1.3.0
+7fb156633000-7fb156634000 r--p 00007000 08:01 5443                       /usr/lib/x86_64-linux-gnu/libuuid.so.1.3.0
+7fb156634000-7fb156635000 rw-p 00008000 08:01 5443                       /usr/lib/x86_64-linux-gnu/libuuid.so.1.3.0
+7fb156635000-7fb156637000 r--p 00000000 08:01 5155                       /usr/lib/x86_64-linux-gnu/libz.so.1.3
+7fb156637000-7fb156649000 r-xp 00002000 08:01 5155                       /usr/lib/x86_64-linux-gnu/libz.so.1.3
+7fb156649000-7fb15664f000 r--p 00014000 08:01 5155                       /usr/lib/x86_64-linux-gnu/libz.so.1.3
+7fb15664f000-7fb156650000 r--p 0001a000 08:01 5155                       /usr/lib/x86_64-linux-gnu/libz.so.1.3
+7fb156650000-7fb156651000 rw-p 0001b000 08:01 5155                       /usr/lib/x86_64-linux-gnu/libz.so.1.3
+7fb156657000-7fb156659000 rw-p 00000000 00:00 0 
+7fb156659000-7fb15665a000 r--p 00000000 08:01 6489                       /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+7fb15665a000-7fb156685000 r-xp 00001000 08:01 6489                       /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+7fb156685000-7fb15668f000 r--p 0002c000 08:01 6489                       /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+7fb15668f000-7fb156691000 r--p 00036000 08:01 6489                       /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+7fb156691000-7fb156693000 rw-p 00038000 08:01 6489                       /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+7ffe0adf7000-7ffe0ae18000 rw-p 00000000 00:00 0                          [stack]
+7ffe0aec5000-7ffe0aec9000 r--p 00000000 00:00 0                          [vvar]
+7ffe0aec9000-7ffe0aecb000 r-xp 00000000 00:00 0                          [vdso]
+ffffffffff600000-ffffffffff601000 --xp 00000000 00:00 0                  [vsyscall]

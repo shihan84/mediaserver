@@ -24,7 +24,9 @@ class OMEClient {
       };
 
       if (this.apiKey) {
-        config.headers['Authorization'] = `Bearer ${this.apiKey}`;
+        // OME API uses Basic authentication with Base64 encoded token
+        const authToken = Buffer.from(this.apiKey).toString('base64');
+        config.headers['Authorization'] = `Basic ${authToken}`;
       }
 
       if (data) {
@@ -45,11 +47,34 @@ class OMEClient {
   }
 
   async getStreams() {
-    return this.request('GET', '/v1/vhosts/default/apps/app/streams');
+    const result = await this.request('GET', '/v1/vhosts/default/apps/app/streams');
+    // OME returns streams in response.response array format: {message: "OK", response: ["stream1", "stream2"], statusCode: 200}
+    let streamNames: string[] = [];
+    
+    if (result && result.response && Array.isArray(result.response)) {
+      streamNames = result.response;
+    } else if (Array.isArray(result)) {
+      streamNames = result;
+    }
+    
+    // Fetch full details for each stream
+    if (streamNames.length > 0) {
+      const streamPromises = streamNames.map((streamName: string) => 
+        this.getStream(streamName).catch((err) => {
+          logger.warn('Failed to fetch stream details', { streamName, error: err.message });
+          return { name: streamName, state: 'unknown' };
+        })
+      );
+      return await Promise.all(streamPromises);
+    }
+    
+    return [];
   }
 
   async getStream(streamName: string) {
-    return this.request('GET', `/v1/vhosts/default/apps/app/streams/${streamName}`);
+    const result = await this.request('GET', `/v1/vhosts/default/apps/app/streams/${streamName}`);
+    // OME returns stream details in response.response
+    return result.response || result;
   }
 
   async createStream(config: any) {
@@ -68,7 +93,8 @@ class OMEClient {
     const endpoint = streamName
       ? `/v1/vhosts/default/apps/app/streams/${streamName}/metrics`
       : '/v1/vhosts/default/apps/app/metrics';
-    return this.request('GET', endpoint);
+    const result = await this.request('GET', endpoint);
+    return result.response || result;
   }
 
   // Recording endpoints (https://docs.ovenmediaengine.com/recording)
@@ -163,7 +189,8 @@ class OMEClient {
 
   // Output profiles (transcoding) (https://docs.ovenmediaengine.com/rest-api)
   async getOutputProfiles(vhostName: string = 'default', appName: string = 'app') {
-    return this.request('GET', `/v1/vhosts/${vhostName}/apps/${appName}/outputProfiles`);
+    const result = await this.request('GET', `/v1/vhosts/${vhostName}/apps/${appName}/outputProfiles`);
+    return result.response || result;
   }
 }
 
