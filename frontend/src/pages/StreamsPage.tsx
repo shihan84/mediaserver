@@ -14,11 +14,17 @@ export function StreamsPage() {
   const queryClient = useQueryClient();
   const [expandedStreams, setExpandedStreams] = useState<Set<string>>(new Set());
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['streams'],
     queryFn: async () => {
-      const response = await streamsApi.getAll();
-      return response.data;
+      try {
+        const response = await streamsApi.getAll();
+        return response.data;
+      } catch (err: any) {
+        console.error('Error fetching streams:', err);
+        toast.error(err.response?.data?.error?.message || 'Failed to fetch streams');
+        throw err;
+      }
     },
     refetchInterval: 5000,
   });
@@ -51,8 +57,22 @@ export function StreamsPage() {
     return <div>Loading...</div>;
   }
 
-  const streams = data?.streams || [];
-  const channels = data?.channels || [];
+  if (error) {
+    return (
+      <div className="p-4 bg-red-50 border border-red-200 rounded">
+        <p className="text-red-800">Error loading streams: {error.message || 'Unknown error'}</p>
+        <p className="text-sm text-red-600 mt-2">Check browser console for details.</p>
+      </div>
+    );
+  }
+
+  const streams = (data as any)?.streams || [];
+  const channels = (data as any)?.channels || [];
+
+  // Debug: Log streams data
+  if (data) {
+    console.log('Streams data:', { streams, channels, rawData: data });
+  }
 
   const toggleStreamExpanded = (streamName: string) => {
     setExpandedStreams(prev => {

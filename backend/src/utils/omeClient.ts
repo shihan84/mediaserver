@@ -47,28 +47,39 @@ class OMEClient {
   }
 
   async getStreams() {
-    const result = await this.request('GET', '/v1/vhosts/default/apps/app/streams');
-    // OME returns streams in response.response array format: {message: "OK", response: ["stream1", "stream2"], statusCode: 200}
-    let streamNames: string[] = [];
-    
-    if (result && result.response && Array.isArray(result.response)) {
-      streamNames = result.response;
-    } else if (Array.isArray(result)) {
-      streamNames = result;
+    try {
+      const result = await this.request('GET', '/v1/vhosts/default/apps/app/streams');
+      // OME returns streams in response.response array format: {message: "OK", response: ["stream1", "stream2"], statusCode: 200}
+      let streamNames: string[] = [];
+      
+      if (result && result.response && Array.isArray(result.response)) {
+        streamNames = result.response;
+      } else if (Array.isArray(result)) {
+        streamNames = result;
+      }
+      
+      logger.info('Fetched stream names from OME', { streamNames, count: streamNames.length });
+      
+      // Fetch full details for each stream
+      if (streamNames.length > 0) {
+        const streamPromises = streamNames.map((streamName: string) => 
+          this.getStream(streamName).catch((err) => {
+            logger.warn('Failed to fetch stream details', { streamName, error: err.message });
+            // Return minimal stream object so it still shows up in the list
+            return { name: streamName, state: 'unknown', input: { sourceType: 'Unknown' } };
+          })
+        );
+        const streams = await Promise.all(streamPromises);
+        logger.info('Fetched stream details', { count: streams.length, streams: streams.map((s: any) => s.name) });
+        return streams;
+      }
+      
+      logger.info('No streams found in OME');
+      return [];
+    } catch (error: any) {
+      logger.error('Error fetching streams', { error: error.message, stack: error.stack });
+      throw error;
     }
-    
-    // Fetch full details for each stream
-    if (streamNames.length > 0) {
-      const streamPromises = streamNames.map((streamName: string) => 
-        this.getStream(streamName).catch((err) => {
-          logger.warn('Failed to fetch stream details', { streamName, error: err.message });
-          return { name: streamName, state: 'unknown' };
-        })
-      );
-      return await Promise.all(streamPromises);
-    }
-    
-    return [];
   }
 
   async getStream(streamName: string) {
