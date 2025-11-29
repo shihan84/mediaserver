@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Stream Player - OME</title>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .container {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #4CAF50;
+            margin-top: 0;
+        }
+        .input-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #ccc;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #444;
+            border-radius: 4px;
+            background: #1a1a1a;
+            color: #fff;
+            font-size: 14px;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button.secondary {
+            background: #666;
+        }
+        button.secondary:hover {
+            background: #777;
+        }
+        video {
+            width: 100%;
+            max-width: 1280px;
+            background: #000;
+            border-radius: 4px;
+        }
+        .status {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .status.success {
+            background: #4CAF50;
+            color: white;
+        }
+        .status.error {
+            background: #f44336;
+            color: white;
+        }
+        .status.info {
+            background: #2196F3;
+            color: white;
+        }
+        .preset-urls {
+            margin-top: 15px;
+        }
+        .preset-urls button {
+            background: #555;
+            font-size: 12px;
+            padding: 5px 10px;
+            margin: 5px 5px 5px 0;
+        }
+        .preset-urls button:hover {
+            background: #666;
+        }
+        .info-box {
+            background: #333;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 15px;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎥 Live Stream Player</h1>
+        <p>Test your OME live streams with HLS.js player</p>
+        
+        <div class="input-group">
+            <label for="streamUrl">Stream URL (LLHLS/HLS/DASH):</label>
+            <input 
+                type="text" 
+                id="streamUrl" 
+                placeholder="http://ome.imagetv.in:3333/default/app/live/llhls.m3u8"
+                value="http://ome.imagetv.in:3333/default/app/live/llhls.m3u8"
+            >
+        </div>
+        
+        <div class="preset-urls">
+            <strong style="color: #ccc;">Quick Presets:</strong><br>
+            <button onclick="loadPreset('llhls')">LLHLS</button>
+            <button onclick="loadPreset('hls')">HLS</button>
+            <button onclick="loadPreset('dash')">DASH</button>
+        </div>
+        
+        <div style="margin-top: 15px;">
+            <button onclick="playStream()">▶ Play Stream</button>
+            <button class="secondary" onclick="stopStream()">⏹ Stop</button>
+        </div>
+        
+        <div id="status"></div>
+    </div>
+    
+    <div class="container">
+        <video id="video" controls></video>
+    </div>
+    
+    <div class="container info-box">
+        <strong>📋 Instructions:</strong><br>
+        1. Enter your stream URL above (or use presets)<br>
+        2. Click "Play Stream" button<br>
+        3. Video should start playing automatically<br><br>
+        
+        <strong>🔗 URL Format:</strong><br>
+        • LLHLS: <code>http://ome.imagetv.in:3333/default/app/STREAM_NAME/llhls.m3u8</code><br>
+        • HLS: <code>http://ome.imagetv.in:3333/default/app/STREAM_NAME/playlist.m3u8</code><br>
+        • DASH: <code>http://ome.imagetv.in:3333/default/app/STREAM_NAME/manifest.mpd</code><br><br>
+        
+        <strong>💡 Tips:</strong><br>
+        • Replace "live" with your actual stream name<br>
+        • For DASH streams, use a DASH.js player instead<br>
+        • Check browser console (F12) for any errors
+    </div>
+
+    <script>
+        let hls = null;
+        const video = document.getElementById('video');
+        const streamUrlInput = document.getElementById('streamUrl');
+        const statusDiv = document.getElementById('status');
+
+        function showStatus(message, type = 'info') {
+            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        function loadPreset(type) {
+            const streamName = 'live'; // Change this to your stream name
+            const baseUrl = 'http://ome.imagetv.in:3333/default/app';
+            
+            const urls = {
+                llhls: `${baseUrl}/${streamName}/llhls.m3u8`,
+                hls: `${baseUrl}/${streamName}/playlist.m3u8`,
+                dash: `${baseUrl}/${streamName}/manifest.mpd`
+            };
+            
+            if (urls[type]) {
+                streamUrlInput.value = urls[type];
+                showStatus(`Loaded ${type.toUpperCase()} URL`, 'success');
+            }
+        }
+
+        function playStream() {
+            const streamUrl = streamUrlInput.value.trim();
+            
+            if (!streamUrl) {
+                showStatus('Please enter a stream URL', 'error');
+                return;
+            }
+
+            // Stop any existing stream
+            stopStream();
+
+            showStatus('Loading stream...', 'info');
+
+            // Check if it's a DASH stream
+            if (streamUrl.includes('.mpd')) {
+                showStatus('DASH streams require dash.js player. Please use the DASH.js demo: https://reference.dashif.org/dash.js/latest/samples/dash-if-reference-player/index.html', 'error');
+                return;
+            }
+
+            // Use HLS.js for HLS/LLHLS streams
+            if (Hls.isSupported()) {
+                hls = new Hls({
+                    enableWorker: true,
+                    lowLatencyMode: true,
+                    backBufferLength: 90
+                });
+                
+                hls.loadSource(streamUrl);
+                hls.attachMedia(video);
+                
+                hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                    showStatus('Stream loaded! Starting playback...', 'success');
+                    video.play().catch(err => {
+                        showStatus('Error playing video: ' + err.message, 'error');
+                    });
+                });
+
+                hls.on(Hls.Events.ERROR, function(event, data) {
+                    if (data.fatal) {
+                        switch(data.type) {
+                            case Hls.ErrorTypes.NETWORK_ERROR:
+                                showStatus('Network error. Trying to recover...', 'error');
+                                hls.startLoad();
+                                break;
+                            case Hls.ErrorTypes.MEDIA_ERROR:
+                                showStatus('Media error. Trying to recover...', 'error');
+                                hls.recoverMediaError();
+                                break;
+                            default:
+                                showStatus('Fatal error: ' + data.details, 'error');
+                                hls.destroy();
+                                break;
+                        }
+                    }
+                });
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                // Native HLS support (Safari)
+                video.src = streamUrl;
+                showStatus('Using native HLS support (Safari)', 'info');
+                video.addEventListener('loadedmetadata', function() {
+                    showStatus('Stream loaded!', 'success');
+                    video.play().catch(err => {
+                        showStatus('Error playing video: ' + err.message, 'error');
+                    });
+                });
+            } else {
+                showStatus('HLS is not supported in this browser. Please use Chrome, Firefox, or Edge.', 'error');
+            }
+        }
+
+        function stopStream() {
+            if (hls) {
+                hls.destroy();
+                hls = null;
+            }
+            video.pause();
+            video.src = '';
+            showStatus('Stream stopped', 'info');
+        }
+
+        // Auto-play on page load with default URL
+        window.addEventListener('load', function() {
+            showStatus('Ready. Enter a stream URL and click Play.', 'info');
+        });
+    </script>
+</body>
+</html>
