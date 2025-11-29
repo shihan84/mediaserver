@@ -1,16 +1,30 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { tasksApi } from '../lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Button } from '../components/ui/button';
+import toast from 'react-hot-toast';
 import { formatDate } from '../lib/utils';
 
 export function TasksPage() {
+  const queryClient = useQueryClient();
+
   const { data, isLoading } = useQuery({
     queryKey: ['tasks'],
     queryFn: async () => {
       const response = await tasksApi.getAll();
       return response.data;
+    },
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: (id: string) => tasksApi.cancel(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      toast.success('Task cancelled successfully');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error?.message || 'Failed to cancel task');
     },
   });
 
@@ -76,7 +90,14 @@ export function TasksPage() {
                   <TableCell>{formatDate(task.createdAt)}</TableCell>
                   <TableCell>
                     {task.status === 'IN_PROGRESS' && (
-                      <Button variant="outline" size="sm">Cancel</Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => cancelMutation.mutate(task.id)}
+                        disabled={cancelMutation.isPending}
+                      >
+                        {cancelMutation.isPending ? 'Cancelling...' : 'Cancel'}
+                      </Button>
                     )}
                   </TableCell>
                 </TableRow>

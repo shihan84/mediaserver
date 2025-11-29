@@ -8,6 +8,8 @@ import { auditLog } from '../utils/auditLog';
 import { randomUUID } from 'crypto';
 import { scheduledChannelService } from '../services/scheduledChannelService';
 import { logger } from '../utils/logger';
+import { outputUrlService } from '../services/outputUrlService';
+import { omeClient } from '../utils/omeClient';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -64,6 +66,9 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response, next) =
         schedules: {
           where: { isActive: true },
           orderBy: { startTime: 'asc' }
+        },
+        distributors: {
+          where: { isActive: true }
         }
       }
     });
@@ -73,6 +78,66 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response, next) =
     }
 
     res.json({ channel });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get channel output URLs
+router.get('/:id/outputs', authenticate, async (req: AuthRequest, res: Response, next) => {
+  try {
+    const channel = await prisma.channel.findUnique({
+      where: { id: req.params.id },
+      include: {
+        distributors: {
+          where: { isActive: true },
+          include: {
+            prerollMarker: true
+          }
+        }
+      }
+    });
+
+    if (!channel) {
+      throw new AppError('Channel not found', 404, 'CHANNEL_NOT_FOUND');
+    }
+
+    // Use streamKey or channel name for URL generation
+    const streamName = channel.streamKey || channel.name;
+
+    // Get output profiles from OME
+    let outputProfiles: string[] = [];
+    try {
+      const profiles = await omeClient.getOutputProfiles();
+      outputProfiles = profiles?.outputProfiles?.map((p: any) => p.name) || [];
+    } catch (err) {
+      logger.warn('Could not fetch output profiles', { channelId: channel.id });
+    }
+
+    // Generate OME output URLs
+    const omeOutputs = outputUrlService.generateOutputUrls(streamName, outputProfiles.length > 0 ? outputProfiles : undefined);
+
+    // Get distributor URLs (CDN/manual URLs)
+    const distributorUrls = channel.distributors.map((dist) => ({
+      id: dist.id,
+      name: dist.name,
+      type: dist.type,
+      hlsUrl: dist.hlsUrl,
+      mpdUrl: dist.mpdUrl,
+      srtEndpoint: dist.srtEndpoint,
+      srtStreamKey: dist.srtStreamKey,
+    }));
+
+    res.json({
+      channel: {
+        id: channel.id,
+        name: channel.name,
+        streamKey: channel.streamKey,
+        isActive: channel.isActive
+      },
+      outputs: omeOutputs,
+      distributors: distributorUrls
+    });
   } catch (error) {
     next(error);
   }

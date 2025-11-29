@@ -5,6 +5,7 @@ import { authenticate, AuthRequest, requireOperator } from '../middleware/auth';
 import { auditLog } from '../utils/auditLog';
 import { omeClient } from '../utils/omeClient';
 import { logger } from '../utils/logger';
+import { outputUrlService } from '../services/outputUrlService';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -54,10 +55,50 @@ router.get('/:streamName', authenticate, async (req: AuthRequest, res: Response,
       take: 100
     });
 
+    // Generate output URLs
+    let outputUrls = null;
+    let outputProfiles: string[] = [];
+    try {
+      // Try to get output profiles from OME
+      const profiles = await omeClient.getOutputProfiles();
+      outputProfiles = profiles?.outputProfiles?.map((p: any) => p.name) || [];
+      outputUrls = outputUrlService.generateOutputUrls(streamName, outputProfiles);
+    } catch (err) {
+      // If profiles not available, generate URLs without profiles
+      outputUrls = outputUrlService.generateOutputUrls(streamName);
+    }
+
     res.json({
       stream,
       omeMetrics,
-      metrics: dbMetrics
+      metrics: dbMetrics,
+      outputs: outputUrls
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get stream output URLs
+router.get('/:streamName/outputs', authenticate, async (req: AuthRequest, res: Response, next) => {
+  try {
+    const { streamName } = req.params;
+    
+    // Get output profiles from OME
+    let outputProfiles: string[] = [];
+    try {
+      const profiles = await omeClient.getOutputProfiles();
+      outputProfiles = profiles?.outputProfiles?.map((p: any) => p.name) || [];
+    } catch (err) {
+      logger.warn('Could not fetch output profiles, using default URLs only', { streamName });
+    }
+
+    // Generate all output URLs
+    const outputs = outputUrlService.generateOutputUrls(streamName, outputProfiles.length > 0 ? outputProfiles : undefined);
+
+    res.json({
+      streamName,
+      outputs
     });
   } catch (error) {
     next(error);

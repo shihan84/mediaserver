@@ -1,0 +1,441 @@
+# Guide: Getting Output URLs/Links for Streams
+
+**Last Updated:** 2025-01-23  
+**Reference:** [OME Official Documentation](https://docs.ovenmediaengine.com/)
+
+## Overview
+
+OvenMediaEngine automatically generates output URLs based on your server configuration and output profiles. This guide explains how to retrieve and construct these URLs.
+
+---
+
+## Standard OME Output URL Patterns
+
+### Base URL Structure
+
+OME generates output URLs in the following format:
+
+```
+{protocol}://{host}:{port}/{vhost}/{app}/{streamName}/{outputPath}
+```
+
+**Default Configuration:**
+- **Protocol:** `http://` or `https://` (based on server config)
+- **VHost:** `default` (or your configured virtual host)
+- **App:** `app` (or your configured application name)
+- **StreamName:** Your channel's `streamKey` or channel `name`
+
+---
+
+## Output Protocol URLs
+
+### 1. **LLHLS (Low Latency HLS)**
+
+**URL Pattern:**
+```
+https://{server}:{port}/{vhost}/{app}/{streamName}/llhls.m3u8
+```
+
+**Example:**
+```
+https://stream.example.com/default/app/my-stream-key/llhls.m3u8
+```
+
+**Default Port:** `3333` (HTTPS) or `3334` (HTTP)
+
+---
+
+### 2. **HLS (Standard HLS)**
+
+**URL Pattern:**
+```
+https://{server}:{port}/{vhost}/{app}/{streamName}/playlist.m3u8
+```
+
+**Example:**
+```
+https://stream.example.com/default/app/my-stream-key/playlist.m3u8
+```
+
+**Default Port:** `3333` (HTTPS) or `3334` (HTTP)
+
+---
+
+### 3. **DASH (MPD)**
+
+**URL Pattern:**
+```
+https://{server}:{port}/{vhost}/{app}/{streamName}/manifest.mpd
+```
+
+**Example:**
+```
+https://stream.example.com/default/app/my-stream-key/manifest.mpd
+```
+
+**Default Port:** `3333` (HTTPS) or `3334` (HTTP)
+
+---
+
+### 4. **WebRTC (Playback)**
+
+**URL Pattern:**
+```
+webrtc://{server}:{port}/{vhost}/{app}/{streamName}
+```
+
+**Example:**
+```
+webrtc://stream.example.com:3333/default/app/my-stream-key
+```
+
+**Default Port:** `3333`
+
+---
+
+### 5. **SRT (Output)**
+
+**URL Pattern:**
+```
+srt://{server}:{port}?streamid={vhost}/{app}/{streamName}
+```
+
+**Example:**
+```
+srt://stream.example.com:9998?streamid=default/app/my-stream-key
+```
+
+**Default Port:** `9998`
+
+---
+
+## Getting Output URLs via API
+
+### Method 1: Get URLs from Channel/Stream Endpoint
+
+**Enhanced Stream Details Endpoint** (Recommended Implementation):
+
+```bash
+GET /api/streams/:streamName/outputs
+```
+
+**Response:**
+```json
+{
+  "streamName": "my-stream-key",
+  "outputs": {
+    "llhls": "https://stream.example.com:3333/default/app/my-stream-key/llhls.m3u8",
+    "hls": "https://stream.example.com:3333/default/app/my-stream-key/playlist.m3u8",
+    "dash": "https://stream.example.com:3333/default/app/my-stream-key/manifest.mpd",
+    "webrtc": "webrtc://stream.example.com:3333/default/app/my-stream-key",
+    "srt": "srt://stream.example.com:9998?streamid=default/app/my-stream-key"
+  },
+  "outputProfiles": [
+    {
+      "name": "720p",
+      "llhls": "https://stream.example.com:3333/default/app/my-stream-key/720p/llhls.m3u8",
+      "hls": "https://stream.example.com:3333/default/app/my-stream-key/720p/playlist.m3u8"
+    },
+    {
+      "name": "1080p",
+      "llhls": "https://stream.example.com:3333/default/app/my-stream-key/1080p/llhls.m3u8",
+      "hls": "https://stream.example.com:3333/default/app/my-stream-key/1080p/playlist.m3u8"
+    }
+  ]
+}
+```
+
+---
+
+### Method 2: Get URLs from Channel Details
+
+**Enhanced Channel Endpoint:**
+
+```bash
+GET /api/channels/:id/outputs
+```
+
+**Response:**
+```json
+{
+  "channel": {
+    "id": "channel-uuid",
+    "name": "my-channel",
+    "streamKey": "my-stream-key",
+    "isActive": true
+  },
+  "outputs": {
+    "llhls": "https://stream.example.com:3333/default/app/my-stream-key/llhls.m3u8",
+    "hls": "https://stream.example.com:3333/default/app/my-stream-key/playlist.m3u8",
+    "dash": "https://stream.example.com:3333/default/app/my-stream-key/manifest.mpd",
+    "webrtc": "webrtc://stream.example.com:3333/default/app/my-stream-key",
+    "srt": "srt://stream.example.com:9998?streamid=default/app/my-stream-key"
+  },
+  "distributors": [
+    {
+      "id": "distributor-uuid",
+      "type": "HLS_MPD",
+      "hlsUrl": "https://cdn.example.com/app/my-stream-key/playlist.m3u8",
+      "mpdUrl": "https://cdn.example.com/app/my-stream-key/manifest.mpd"
+    }
+  ]
+}
+```
+
+---
+
+### Method 3: Use Distributors (CDN URLs)
+
+**Get Distributors for Channel:**
+
+```bash
+GET /api/distributors/channel/:channelId
+```
+
+**Response:**
+```json
+{
+  "distributors": [
+    {
+      "id": "distributor-uuid",
+      "type": "HLS_MPD",
+      "hlsUrl": "https://cdn.example.com/app/my-stream-key/playlist.m3u8",
+      "mpdUrl": "https://cdn.example.com/app/my-stream-key/manifest.mpd",
+      "isActive": true
+    },
+    {
+      "id": "distributor-srt-uuid",
+      "type": "SRT",
+      "srtEndpoint": "srt://cdn-server:9998",
+      "srtStreamKey": "distributed-key",
+      "isActive": true
+    }
+  ]
+}
+```
+
+**Note:** Distributor URLs are manually configured (CDN URLs), not auto-generated by OME.
+
+---
+
+## Implementation Status
+
+### ✅ Available Now (IMPLEMENTED)
+
+1. **Stream Details** - `GET /api/streams/:streamName`
+   - Returns stream information from OME
+   - ✅ **NOW INCLUDES** auto-generated output URLs in response
+
+2. **Stream Output URLs** - `GET /api/streams/:streamName/outputs` ⭐ NEW
+   - Returns all output URLs for a stream
+   - Includes default URLs and output profile-specific URLs
+   - Automatically queries OME for available output profiles
+
+3. **Channel Output URLs** - `GET /api/channels/:id/outputs` ⭐ NEW
+   - Returns all output URLs for a channel
+   - Includes OME auto-generated URLs AND distributor (CDN) URLs
+   - Best endpoint for getting all playback URLs
+
+4. **Distributors** - `GET /api/distributors/channel/:channelId`
+   - Returns manually configured CDN/distribution URLs
+   - Includes HLS, MPD, and SRT URLs
+
+5. **Channel Details** - `GET /api/channels/:id`
+   - Returns channel information with distributors included
+
+### ✅ Features
+
+1. **Auto-generated OME Output URLs** ✅
+   - Constructs URLs based on OME server configuration
+   - Configurable via environment variables
+   - Generates URLs for all enabled output profiles
+
+2. **Output Profile Support** ✅
+   - Automatically fetches output profiles from OME
+   - Generates profile-specific URLs (720p, 1080p, etc.)
+   - Falls back to default URLs if profiles unavailable
+
+---
+
+## URL Generation Logic
+
+### Environment Variables Needed
+
+```env
+# OME Server Configuration
+OME_PUBLIC_HOST=stream.example.com
+OME_PUBLIC_PORT=3333
+OME_PUBLIC_PORT_HTTP=3334
+OME_VHOST=default
+OME_APP=app
+OME_SRT_PORT=9998
+OME_USE_HTTPS=true
+```
+
+### URL Generation Function
+
+```typescript
+function generateOutputUrls(streamName: string, config: {
+  host: string;
+  port: number;
+  portHttp: number;
+  vhost: string;
+  app: string;
+  srtPort: number;
+  useHttps: boolean;
+}) {
+  const protocol = config.useHttps ? 'https' : 'http';
+  const baseUrl = `${protocol}://${config.host}:${config.port}`;
+  const baseUrlHttp = `http://${config.host}:${config.portHttp}`;
+  
+  return {
+    llhls: `${baseUrl}/${config.vhost}/${config.app}/${streamName}/llhls.m3u8`,
+    hls: `${baseUrl}/${config.vhost}/${config.app}/${streamName}/playlist.m3u8`,
+    dash: `${baseUrl}/${config.vhost}/${config.app}/${streamName}/manifest.mpd`,
+    webrtc: `webrtc://${config.host}:${config.port}/${config.vhost}/${config.app}/${streamName}`,
+    srt: `srt://${config.host}:${config.srtPort}?streamid=${config.vhost}/${config.app}/${streamName}`
+  };
+}
+```
+
+---
+
+## Recommended Implementation
+
+### 1. Get OME Server Configuration
+
+```bash
+GET /api/ome/config
+```
+
+Should return:
+```json
+{
+  "host": "stream.example.com",
+  "ports": {
+    "https": 3333,
+    "http": 3334,
+    "srt": 9998,
+    "webrtc": 3333
+  },
+  "vhost": "default",
+  "app": "app",
+  "useHttps": true,
+  "outputProfiles": [
+    { "name": "default", "enabled": true },
+    { "name": "720p", "enabled": true },
+    { "name": "1080p", "enabled": true }
+  ]
+}
+```
+
+### 2. Generate URLs with Output Profiles
+
+```typescript
+function generateAllOutputUrls(streamName: string, outputProfiles: string[]) {
+  const baseUrls = generateOutputUrls(streamName, config);
+  
+  const profileUrls = outputProfiles.map(profile => ({
+    name: profile,
+    llhls: `${baseUrls.llhls.replace('.m3u8', '')}/${profile}/llhls.m3u8`,
+    hls: `${baseUrls.hls.replace('.m3u8', '')}/${profile}/playlist.m3u8`,
+    dash: `${baseUrls.dash.replace('.mpd', '')}/${profile}/manifest.mpd`
+  }));
+  
+  return {
+    default: baseUrls,
+    profiles: profileUrls
+  };
+}
+```
+
+---
+
+## Example: Complete Workflow
+
+### 1. Create Channel
+
+```bash
+POST /api/channels
+{
+  "name": "live-sports",
+  "streamKey": "sports-2025-01-23"
+}
+```
+
+### 2. Get Output URLs
+
+```bash
+GET /api/streams/sports-2025-01-23/outputs
+```
+
+**Response:**
+```json
+{
+  "streamName": "sports-2025-01-23",
+  "outputs": {
+    "llhls": "https://stream.example.com:3333/default/app/sports-2025-01-23/llhls.m3u8",
+    "hls": "https://stream.example.com:3333/default/app/sports-2025-01-23/playlist.m3u8",
+    "dash": "https://stream.example.com:3333/default/app/sports-2025-01-23/manifest.mpd",
+    "webrtc": "webrtc://stream.example.com:3333/default/app/sports-2025-01-23",
+    "srt": "srt://stream.example.com:9998?streamid=default/app/sports-2025-01-23"
+  },
+  "thumbnail": "https://stream.example.com:3333/default/app/sports-2025-01-23/thumbnail"
+}
+```
+
+### 3. Use in Video Players
+
+**HLS.js (Web):**
+```javascript
+const video = document.getElementById('video');
+const hls = new Hls();
+hls.loadSource('https://stream.example.com:3333/default/app/sports-2025-01-23/llhls.m3u8');
+hls.attachMedia(video);
+```
+
+**Video.js:**
+```javascript
+const player = videojs('video', {
+  sources: [{
+    src: 'https://stream.example.com:3333/default/app/sports-2025-01-23/llhls.m3u8',
+    type: 'application/x-mpegURL'
+  }]
+});
+```
+
+**VLC/Media Player:**
+```
+https://stream.example.com:3333/default/app/sports-2025-01-23/playlist.m3u8
+```
+
+---
+
+## Current Workaround
+
+Until auto-generation is implemented, you can:
+
+1. **Use Distributors** - Manually configure CDN URLs via distributors
+2. **Construct URLs Manually** - Use the URL patterns above with your server config
+3. **Query OME Directly** - Get stream info from OME API and construct URLs client-side
+
+---
+
+## Next Steps for Implementation
+
+1. ✅ Document URL patterns (this guide)
+2. ⏳ Add OME config endpoint
+3. ⏳ Create output URL generation service
+4. ⏳ Add `/api/streams/:streamName/outputs` endpoint
+5. ⏳ Add `/api/channels/:id/outputs` endpoint
+6. ⏳ Include output profile-specific URLs
+7. ⏳ Update frontend to display output URLs
+
+---
+
+## References
+
+- [OME Official Documentation](https://docs.ovenmediaengine.com/)
+- [OME REST API](https://docs.ovenmediaengine.com/rest-api)
+- [OME Output Formats](https://docs.ovenmediaengine.com/output-formats)
+
