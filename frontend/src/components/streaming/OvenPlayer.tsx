@@ -239,6 +239,9 @@ export function OvenPlayer({
 
               safeOn('error', (err: any) => {
                 if (isMounted) {
+                  // High-signal diagnostic to identify why HLS/LLHLS init fails in production.
+                  // (Can be removed once stable.)
+                  console.error('OvenPlayer error event:', err);
                   const errorMsg = err?.message || 'Player error occurred';
                   setError(errorMsg);
                   setIsLoading(false);
