@@ -100,9 +100,9 @@ export function OvenPlayer({
     let cleanupTimeout: NodeJS.Timeout | null = null;
     let currentPlayerInstance: any = null;
 
-    // OvenPlayer uses the HLS engine for LL-HLS manifests; normalizing avoids
-    // "Error initializing HLS" when passing a non-standard type.
-    const normalizedSources = sources.map((s) => (s.type === 'llhls' ? { ...s, type: 'hls' as const } : s));
+    // Keep the declared source types (webrtc/llhls/hls). OvenPlayer's HLS stack
+    // relies on hls.js being loaded globally (we load /hls.min.js above).
+    const normalizedSources = sources;
 
     // Clean up existing player instance aggressively
     if (playerInstanceRef.current) {
