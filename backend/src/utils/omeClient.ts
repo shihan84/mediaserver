@@ -136,7 +136,7 @@ class OMEClient {
                 logger.warn('Stream detail incomplete', { streamName, appName, streamDetail });
                 return { 
                   name: streamName, 
-                  state: 'unknown', 
+                  state: 'started',
                   input: { sourceType: 'Unknown' }, 
                   appName 
                 };
@@ -150,7 +150,7 @@ class OMEClient {
                 // Return minimal stream object with appName so it still appears
                 return { 
                   name: streamName, 
-                  state: 'unknown', 
+                  state: 'started',
                   input: { sourceType: 'Unknown' }, 
                   appName 
                 };

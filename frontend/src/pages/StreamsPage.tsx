@@ -108,17 +108,7 @@ export function StreamsPage() {
     toast.success(`${label} copied to clipboard`);
   };
 
-  // Debug logging
-  useEffect(() => {
-    if (data) {
-      console.log('Streams Page - Data:', {
-        streamsCount: streams.length,
-        channelsCount: channels.length,
-        streams: streams.map((s: any) => ({ name: s.name, appName: s.appName, state: s.state })),
-        channels: channels.map((c: any) => ({ name: c.name, streamKey: c.streamKey, appName: c.appName }))
-      });
-    }
-  }, [data, streams.length, channels.length]);
+  // (Intentionally no console logging in production UI)
 
   if (isLoading) {
     return (

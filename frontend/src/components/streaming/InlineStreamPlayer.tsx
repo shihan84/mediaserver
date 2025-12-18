@@ -110,7 +110,8 @@ export function InlineStreamPlayer({ streamName, appName, channel, onStreamChang
     );
   }
 
-  const isHealthy = streamHealth?.status === 'healthy' || streamHealth?.status === 'active';
+  // Backend returns streamHealth as { state, connected, quality, ... }
+  const isHealthy = !!streamHealth?.connected;
   const uptime = stream.createdTime 
     ? formatDistanceToNow(new Date(stream.createdTime), { addSuffix: false })
     : 'Unknown';
@@ -234,7 +235,7 @@ export function InlineStreamPlayer({ streamName, appName, channel, onStreamChang
                   ) : (
                     <>
                       <XCircle className="w-4 h-4" />
-                      {streamHealth?.status || 'Unknown'}
+                      {streamHealth?.state || 'Unknown'}
                     </>
                   )}
                 </span>
