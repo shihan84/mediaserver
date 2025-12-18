@@ -6,6 +6,10 @@ import App from './App';
 import { Toaster } from 'react-hot-toast';
 import './index.css';
 
+// Build stamp to force cache-busting when deploying behind long-lived asset caching.
+// Useful to verify which bundle is loaded in the browser.
+(window as any).__OME_DASHBOARD_BUILD__ = '2025-12-18-1';
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
