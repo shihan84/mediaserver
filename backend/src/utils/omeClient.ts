@@ -201,10 +201,10 @@ class OMEClient {
     return this.request('POST', `/v1/vhosts/default/apps/app/streams/${streamName}/scte35`, marker);
   }
 
-  async getMetrics(streamName?: string) {
+  async getMetrics(streamName?: string, vhostName: string = 'default', appName: string = 'app') {
     const endpoint = streamName
-      ? `/v1/vhosts/default/apps/app/streams/${streamName}/metrics`
-      : '/v1/vhosts/default/apps/app/metrics';
+      ? `/v1/vhosts/${vhostName}/apps/${appName}/streams/${streamName}/metrics`
+      : `/v1/vhosts/${vhostName}/apps/${appName}/metrics`;
     const result = await this.request('GET', endpoint);
     return result.response || result;
   }
@@ -409,7 +409,7 @@ class OMEClient {
    */
   async getStreamHealth(streamName: string, vhostName: string = 'default', appName: string = 'app') {
     try {
-      const stream = await this.getStream(streamName);
+      const stream = await this.getStream(streamName, vhostName, appName);
       const stats = await this.getStreamStatistics(streamName, vhostName, appName);
       
       return {

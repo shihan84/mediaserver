@@ -53,12 +53,8 @@ export function InlineStreamPlayer({ streamName, appName, channel, onStreamChang
     return null;
   };
 
+  // Prefer HLS/LLHLS first for smoother startup; keep WebRTC available as an option.
   const playerSources = outputs ? [
-    ...(outputs.webrtc ? [{
-      type: 'webrtc' as const,
-      file: outputs.webrtc,
-      label: 'WebRTC (Low Latency)'
-    }] : []),
     ...(getSourceUrl('llhls') ? [{
       type: 'llhls' as const,
       file: getSourceUrl('llhls')!,
@@ -68,7 +64,12 @@ export function InlineStreamPlayer({ streamName, appName, channel, onStreamChang
       type: 'hls' as const,
       file: getSourceUrl('hls')!,
       label: selectedQuality !== 'auto' ? `HLS - ${selectedQuality}` : 'HLS (Standard)'
-    }] : [])
+    }] : []),
+    ...(outputs.webrtc ? [{
+      type: 'webrtc' as const,
+      file: outputs.webrtc,
+      label: 'WebRTC (Low Latency)'
+    }] : []),
   ].filter(Boolean) : [];
 
   const copyToClipboard = (text: string, label: string) => {

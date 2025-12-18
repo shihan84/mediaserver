@@ -132,7 +132,7 @@ router.get('/:streamName', authenticate, async (req: AuthRequest, res: Response,
     let viewerCount = null;
 
     try {
-      omeMetrics = await omeClient.getMetrics(streamName);
+      omeMetrics = await omeClient.getMetrics(streamName, 'default', foundAppName);
     } catch (err) {
       // Metrics might not be available, continue without them
     }
