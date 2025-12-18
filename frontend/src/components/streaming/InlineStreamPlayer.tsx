@@ -4,6 +4,7 @@ import { streamsApi } from '../../lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { OvenPlayer } from './OvenPlayer';
+import { HlsVideoPlayer } from './HlsVideoPlayer';
 import { Copy, Monitor, Users, Activity, Radio, CheckCircle, XCircle, Video, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatDistanceToNow } from 'date-fns';
@@ -167,19 +168,23 @@ export function InlineStreamPlayer({ streamName, appName, channel, onStreamChang
               {playerSources.length > 0 ? (
                 <div className="space-y-3">
                   <div className="relative w-full bg-black rounded-lg overflow-hidden" style={{ aspectRatio: '16/9' }}>
-                    <OvenPlayer
-                      sources={playerSources}
-                      renditions={outputs?.profiles || []}
-                      enableQualitySelection={!!outputs?.profiles && outputs.profiles.length > 0}
-                      onQualityChange={(quality) => setSelectedQuality(quality)}
-                      className="w-full h-full"
-                      // Workaround: OvenPlayer progress bar handlers can throw when internal
-                      // state is null. Disabling controls avoids those handlers.
-                      controls={false}
-                      onError={(err) => {
-                        toast.error(err.message || 'Failed to load stream');
-                      }}
-                    />
+                    {getSourceUrl('llhls') ? (
+                      <HlsVideoPlayer
+                        src={getSourceUrl('llhls')!}
+                        className="w-full h-full"
+                        muted
+                        autoPlay
+                      />
+                    ) : (
+                      <OvenPlayer
+                        sources={playerSources}
+                        className="w-full h-full"
+                        controls={false}
+                        onError={(err) => {
+                          toast.error(err.message || 'Failed to load stream');
+                        }}
+                      />
+                    )}
                   </div>
 
                   {/* Quality Selection */}
