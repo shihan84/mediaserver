@@ -74,8 +74,9 @@ export function OvenPlayer({
     (async () => {
       try {
         // Same-origin scripts to avoid CSP issues
-        await ensureScript('/hls.min.js');
-        await ensureScript('/ovenplayer.js');
+        // Cache-bust to ensure clients pick up updated self-hosted scripts.
+        await ensureScript('/hls.min.js?v=2');
+        await ensureScript('/ovenplayer.js?v=2');
         scriptLoadedRef.current = true;
         setIsLoading(false);
       } catch (e: any) {
