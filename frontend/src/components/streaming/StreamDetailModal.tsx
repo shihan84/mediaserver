@@ -116,11 +116,6 @@ export function StreamDetailModal({
       type: 'llhls' as const,
       file: getSourceUrl('llhls')!,
       label: selectedQuality !== 'auto' ? `LLHLS - ${selectedQuality}` : 'LLHLS (Low Latency HLS)'
-    }] : []),
-    ...(getSourceUrl('hls') ? [{
-      type: 'hls' as const,
-      file: getSourceUrl('hls')!,
-      label: selectedQuality !== 'auto' ? `HLS - ${selectedQuality}` : 'HLS (Standard)'
     }] : [])
   ].filter(Boolean) : [];
 

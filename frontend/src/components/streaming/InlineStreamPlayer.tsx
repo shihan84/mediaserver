@@ -53,17 +53,13 @@ export function InlineStreamPlayer({ streamName, appName, channel, onStreamChang
     return null;
   };
 
-  // Prefer HLS/LLHLS first for smoother startup; keep WebRTC available as an option.
+  // This deployment consistently serves LLHLS; the legacy HLS playlist path can be unreliable.
+  // Prefer LLHLS only to avoid "error initializing hls" in OvenPlayer.
   const playerSources = outputs ? [
     ...(getSourceUrl('llhls') ? [{
       type: 'llhls' as const,
       file: getSourceUrl('llhls')!,
       label: selectedQuality !== 'auto' ? `LLHLS - ${selectedQuality}` : 'LLHLS (Low Latency HLS)'
-    }] : []),
-    ...(getSourceUrl('hls') ? [{
-      type: 'hls' as const,
-      file: getSourceUrl('hls')!,
-      label: selectedQuality !== 'auto' ? `HLS - ${selectedQuality}` : 'HLS (Standard)'
     }] : []),
     ...(outputs.webrtc ? [{
       type: 'webrtc' as const,
