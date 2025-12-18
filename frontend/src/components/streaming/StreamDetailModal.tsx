@@ -863,7 +863,8 @@ export function StreamDetailModal({
                         onCopy={copyToClipboard}
                       />
                     )}
-                    {outputs.thumbnail && (
+                    {/* Thumbnails are optional in OME and commonly 404 unless explicitly enabled. */}
+                    {false && outputs.thumbnail && (
                       <div className="space-y-2">
                         <OutputUrlRow
                           label="Thumbnail"
