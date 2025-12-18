@@ -15,6 +15,7 @@ interface OvenPlayerProps {
   className?: string;
   onError?: (error: any) => void;
   onReady?: () => void;
+  controls?: boolean;
   onQualityChange?: (quality: string) => void;
   enableQualitySelection?: boolean;
   renditions?: Array<{
@@ -39,6 +40,7 @@ export function OvenPlayer({
   className = '', 
   onError, 
   onReady,
+  controls = true,
   onQualityChange: _onQualityChange,
   enableQualitySelection: _enableQualitySelection,
   renditions: _renditions,
@@ -149,7 +151,7 @@ export function OvenPlayer({
           // Avoid OvenPlayer progressbar/timecode null deref bugs seen in some builds
           // (Uncaught TypeError: Cannot read properties of null (reading 'isTimecodeMode')).
           timecode: false,
-          controls: true,
+          controls,
           // Allow autoplay in modern browsers
           mute: true,
           autoplay: true,

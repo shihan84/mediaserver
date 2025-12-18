@@ -167,6 +167,9 @@ export function InlineStreamPlayer({ streamName, appName, channel, onStreamChang
                       enableQualitySelection={!!outputs?.profiles && outputs.profiles.length > 0}
                       onQualityChange={(quality) => setSelectedQuality(quality)}
                       className="w-full h-full"
+                      // Workaround: OvenPlayer progress bar handlers can throw when internal
+                      // state is null. Disabling controls avoids those handlers.
+                      controls={false}
                       onError={(err) => {
                         toast.error(err.message || 'Failed to load stream');
                       }}
