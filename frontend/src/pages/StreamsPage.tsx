@@ -35,6 +35,15 @@ const formatBitrate = (bps: number): string => {
 
 const OME_HOST = (import.meta.env.VITE_OME_HOST as string) || 'ome.imagetv.in';
 
+const getOmePublicBase = (): string => {
+  // If the dashboard is served over HTTPS, avoid mixed content by using a same-origin proxy path.
+  // Nginx should proxy `/ome/` to OME origin (typically http://127.0.0.1:3333/).
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+    return `${window.location.origin}/ome`;
+  }
+  return `http://${OME_HOST}:3333`;
+};
+
 export function StreamsPage() {
   const [selectedStream, setSelectedStream] = useState<{ streamName: string; channel?: any } | null>(null);
   const [playingStream, setPlayingStream] = useState<{ streamName: string; appName?: string; channel?: any } | null>(null);
@@ -292,7 +301,8 @@ export function StreamsPage() {
               const inputUrl = inputSource 
                 ? `rtmp://${OME_HOST}:1935/${stream.appName || 'app'}/${stream.name}`
                 : 'N/A';
-              const thumbnailUrl = `http://${OME_HOST}:3333/${stream.appName || 'app'}/${stream.name}/thumbnail`;
+              const omeBase = getOmePublicBase();
+              const thumbnailUrl = `${omeBase}/${stream.appName || 'app'}/${stream.name}/thumbnail`;
               const isPlaying = playingStream?.streamName === stream.name;
 
               return (

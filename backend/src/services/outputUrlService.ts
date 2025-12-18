@@ -9,6 +9,7 @@ import { logger } from '../utils/logger';
       vhost: string;
       app: string;
       useHttps: boolean;
+      publicBasePath: string;
     }
 
     interface GenerateUrlsOptions {
@@ -65,12 +66,14 @@ class OutputUrlService {
       vhost: process.env.OME_VHOST || 'default',
       app: process.env.OME_APP || 'app',
       useHttps: process.env.OME_USE_HTTPS === 'true' || useHttpsFromCors,
+      publicBasePath: (process.env.OME_PUBLIC_BASE_PATH || '').trim(),
     };
     
     logger.info('OutputUrlService initialized', { 
       publicHost: this.config.publicHost,
       publicPort: this.config.publicPort,
-      useHttps: this.config.useHttps
+      useHttps: this.config.useHttps,
+      publicBasePath: this.config.publicBasePath
     });
   }
 
@@ -116,6 +119,9 @@ class OutputUrlService {
     }>;
   } {
     const protocol = this.config.useHttps ? 'https' : 'http';
+    const basePath = this.config.publicBasePath
+      ? `/${this.config.publicBasePath.replace(/^\/+|\/+$/g, '')}`
+      : '';
     
     // For HTTPS, typically no port needed (standard 443) or use configured port
     // For HTTP, use configured port
@@ -123,7 +129,7 @@ class OutputUrlService {
       ? (this.config.publicPort === 443 ? '' : `:${this.config.publicPort}`)
       : `:${this.config.publicPort}`;
     
-    const baseUrl = `${protocol}://${this.config.publicHost}${port}`;
+    const baseUrl = `${protocol}://${this.config.publicHost}${port}${basePath}`;
     const baseUrlHttp = `http://${this.config.publicHost}:${this.config.publicPortHttp}`;
     
     // Use provided appName or default from config
@@ -140,7 +146,7 @@ class OutputUrlService {
     const webrtcPort = this.config.useHttps 
       ? (this.config.webrtcPort === 443 ? '' : `:${this.config.webrtcPort}`)
       : `:${this.config.webrtcPort}`;
-    const webrtcSignalingUrl = `${webrtcProtocol}://${this.config.publicHost}${webrtcPort}/${streamPath}`;
+    const webrtcSignalingUrl = `${webrtcProtocol}://${this.config.publicHost}${webrtcPort}${basePath}/${streamPath}`;
 
     const outputs = {
       llhls: `${baseUrl}/${streamPath}/llhls.m3u8`,
