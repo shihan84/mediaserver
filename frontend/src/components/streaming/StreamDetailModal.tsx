@@ -14,7 +14,7 @@ import { Copy, ExternalLink, Monitor, Activity, Link2, Users, Radio, CheckCircle
 import { streamsApi, scte35Api } from '../../lib/api';
 import toast from 'react-hot-toast';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { OvenPlayer } from './OvenPlayer';
+import { HlsVideoPlayer } from './HlsVideoPlayer';
 import { DVRControls } from './DVRControls';
 import { Scte35Timeline } from './Scte35Timeline';
 
@@ -34,7 +34,8 @@ export function StreamDetailModal({
   const queryClient = useQueryClient();
   const [selectedOutputUrl, setSelectedOutputUrl] = useState<string>('');
   const [selectedQuality, setSelectedQuality] = useState<string>('auto');
-  const [playerInstance, setPlayerInstance] = useState<any>(null);
+  // OvenPlayer instance was used for DVR controls; current player uses native <video>.
+  const [playerInstance, _setPlayerInstance] = useState<any>(null);
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [duration, setDuration] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -195,7 +196,7 @@ export function StreamDetailModal({
               </div>
             )}
 
-            {/* Video Player Section with OvenPlayer */}
+            {/* Video Player Section */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -212,45 +213,21 @@ export function StreamDetailModal({
               <CardContent className="space-y-4">
                 {playerSources.length > 0 ? (
                   <>
-                    <OvenPlayer
-                      sources={playerSources}
-                      renditions={outputs?.profiles || []}
-                      enableQualitySelection={!!outputs?.profiles && outputs.profiles.length > 0}
-                      enableDvr={!!dvrStatus?.enabled && !!dvrStatus?.available}
-                      onError={(err) => {
-                        toast.error(err.message || 'Failed to load stream in player');
-                      }}
-                      onReady={() => {
-                        // Player ready
-                      }}
-                      onQualityChange={(quality) => {
-                        setSelectedQuality(quality);
-                      }}
-                      onTimeUpdate={(time, dur) => {
-                        setCurrentTime(time);
-                        setDuration(dur || dvrStatus?.window || 0);
-                      }}
-                      onPlayerReady={(instance) => {
-                        setPlayerInstance(instance);
-                        // Track playing state
-                        if (instance) {
-                          try {
-                            if (typeof instance.getState === 'function') {
-                              const state = instance.getState();
-                              setIsPlaying(state === 'playing');
-                            }
-                            // Listen for state changes
-                            if (typeof instance.on === 'function') {
-                              instance.on('stateChanged', (stateData: any) => {
-                                setIsPlaying(stateData?.newstate === 'playing');
-                              });
-                            }
-                          } catch (e) {
-                            console.warn('Error setting up player state tracking:', e);
-                          }
-                        }
-                      }}
-                    />
+                    {/* Prefer LLHLS via native <video> + hls.js (avoids OvenPlayer UI null crashes) */}
+                    {outputs?.llhls ? (
+                      <div className="relative w-full bg-black rounded-lg overflow-hidden" style={{ aspectRatio: '16/9' }}>
+                        <HlsVideoPlayer
+                          src={outputs.llhls}
+                          className="w-full h-full"
+                          muted
+                          autoPlay
+                        />
+                      </div>
+                    ) : (
+                      <div className="p-4 text-sm text-muted-foreground">
+                        No LLHLS output URL available for this stream. Use the WebRTC URL in “Output URLs”.
+                      </div>
+                    )}
 
                     {/* DVR Controls */}
                     {dvrStatus?.enabled && dvrStatus?.available && playerInstance && (
