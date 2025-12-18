@@ -57,7 +57,8 @@ export function OvenPlayer({
     if (scriptLoadedRef.current) return;
 
     const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/ovenplayer/dist/ovenplayer.js';
+    // Use same-origin script to avoid CSP issues in hardened deployments.
+    script.src = '/ovenplayer.js';
     script.async = true;
     script.onload = () => {
       scriptLoadedRef.current = true;
