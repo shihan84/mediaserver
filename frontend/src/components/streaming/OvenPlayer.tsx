@@ -385,10 +385,30 @@ export function OvenPlayer({
 
   return (
     <div className={`relative bg-black rounded-lg overflow-hidden aspect-video ${className}`}>
-      {/* Prevent OvenPlayer internal null deref crashes if user clicks before player is ready */}
-      {!isPlayerReady && (
-        <div className="absolute inset-0 z-50" style={{ pointerEvents: 'auto' }} />
-      )}
+      {/* 
+        OvenPlayer UI handlers can crash (null deref) on click/hover when its internal state is null.
+        To avoid this entirely, we prevent pointer events from reaching OvenPlayer's DOM and
+        handle "click to play" ourselves in a safe way.
+      */}
+      <div
+        className="absolute inset-0 z-50"
+        style={{ pointerEvents: 'auto' }}
+        onClick={() => {
+          try {
+            const p = playerInstanceRef.current;
+            if (p && typeof p.play === 'function') {
+              p.play();
+            }
+          } catch {
+            // ignore
+          }
+        }}
+        onDoubleClick={(e) => {
+          // prevent OvenPlayer double-click handler paths
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+      />
       {isLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10">
           <div className="text-white text-center">
@@ -400,7 +420,8 @@ export function OvenPlayer({
       <div
         ref={playerRef}
         className="w-full h-full"
-        style={!isPlayerReady ? { pointerEvents: 'none' } : undefined}
+        // Never allow pointer events to reach OvenPlayer DOM (prevents its buggy handlers)
+        style={{ pointerEvents: 'none' }}
       />
     </div>
   );
