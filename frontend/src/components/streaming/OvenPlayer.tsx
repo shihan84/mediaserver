@@ -53,7 +53,8 @@ export function OvenPlayer({
   const scriptLoadedRef = useRef(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isPlayerReady, setIsPlayerReady] = useState(false);
+  const [isReady, setIsReady] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   // Only re-create OvenPlayer when the actual source URLs/types change,
   // not on every re-render/refetch that produces a new array identity.
@@ -243,7 +244,7 @@ export function OvenPlayer({
                 if (isMounted && playerInstanceRef.current) {
                   setIsLoading(false);
                   setError(null);
-                  setIsPlayerReady(true);
+                  setIsReady(true);
                   if (onReady) {
                     onReady();
                   }
@@ -265,10 +266,14 @@ export function OvenPlayer({
               });
 
               safeOn('stateChanged', (state: any) => {
-                if (isMounted && state?.newstate === 'playing' && playerInstanceRef.current) {
+                if (!isMounted || !playerInstanceRef.current) return;
+                if (state?.newstate === 'playing') {
                   setIsLoading(false);
                   setError(null);
-                  setIsPlayerReady(true);
+                  setIsPlaying(true);
+                }
+                if (state?.newstate === 'paused' || state?.newstate === 'idle' || state?.newstate === 'error') {
+                  setIsPlaying(false);
                 }
               });
 
@@ -387,28 +392,43 @@ export function OvenPlayer({
     <div className={`relative bg-black rounded-lg overflow-hidden aspect-video ${className}`}>
       {/* 
         OvenPlayer UI handlers can crash (null deref) on click/hover when its internal state is null.
-        To avoid this entirely, we prevent pointer events from reaching OvenPlayer's DOM and
-        handle "click to play" ourselves in a safe way.
+        We prevent pointer events from reaching OvenPlayer's DOM and provide our own safe "Click to Play".
       */}
-      <div
-        className="absolute inset-0 z-50"
-        style={{ pointerEvents: 'auto' }}
-        onClick={() => {
-          try {
-            const p = playerInstanceRef.current;
-            if (p && typeof p.play === 'function') {
-              p.play();
+      {!isPlaying && (
+        <div
+          className="absolute inset-0 z-50 flex items-center justify-center"
+          style={{ pointerEvents: 'auto' }}
+          onDoubleClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          onClick={() => {
+            try {
+              const p = playerInstanceRef.current;
+              if (!p) return;
+              // User gesture: try to unmute then play (some browsers require gesture).
+              try {
+                if (typeof p.setMute === 'function') p.setMute(false);
+              } catch {
+                // ignore
+              }
+              if (typeof p.play === 'function') p.play();
+            } catch {
+              // ignore
             }
-          } catch {
-            // ignore
-          }
-        }}
-        onDoubleClick={(e) => {
-          // prevent OvenPlayer double-click handler paths
-          e.preventDefault();
-          e.stopPropagation();
-        }}
-      />
+          }}
+        >
+          {/* Don't show anything while we're still initializing scripts/player */}
+          {isReady && !isLoading && (
+            <button
+              type="button"
+              className="px-4 py-2 rounded-md bg-white/10 text-white border border-white/20 hover:bg-white/20"
+            >
+              Click to Play
+            </button>
+          )}
+        </div>
+      )}
       {isLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10">
           <div className="text-white text-center">
