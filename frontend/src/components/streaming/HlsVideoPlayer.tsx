@@ -35,8 +35,11 @@ export function HlsVideoPlayer({ src, className = '', muted = true, autoPlay = t
         document.head.appendChild(s);
       });
 
-    // Native HLS (Safari)
-    if (video.canPlayType('application/vnd.apple.mpegurl')) {
+    // Native HLS (Safari). Chrome may return a truthy value but still fail to parse the manifest,
+    // causing DEMUXER_ERROR_COULD_NOT_PARSE. Restrict native path to Safari.
+    const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+    const isSafari = /^((?!chrome|android).)*safari/i.test(ua);
+    if (isSafari && video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = src;
       if (autoPlay) {
         video.play().catch(() => {
@@ -60,6 +63,16 @@ export function HlsVideoPlayer({ src, className = '', muted = true, autoPlay = t
         if (!Hls || typeof Hls.isSupported !== 'function' || !Hls.isSupported()) {
           if (!cancelled) setError('HLS is not supported in this browser.');
           return;
+        }
+
+        // Ensure we aren't leaving a previous direct-manifest src set
+        try {
+          video.removeAttribute('src');
+          // eslint-disable-next-line no-param-reassign
+          (video as any).srcObject = null;
+          video.load();
+        } catch {
+          // ignore
         }
 
         hls = new Hls({
