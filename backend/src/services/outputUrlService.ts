@@ -150,7 +150,9 @@ class OutputUrlService {
 
     const outputs = {
       llhls: `${baseUrl}/${streamPath}/llhls.m3u8`,
-      hls: `${baseUrl}/${streamPath}/playlist.m3u8`,
+      // In our nginx/OME setup, `playlist.m3u8` is often just a redirect/alias to LLHLS.
+      // Returning the direct LLHLS manifest avoids 302s and improves player compatibility.
+      hls: `${baseUrl}/${streamPath}/llhls.m3u8`,
       dash: `${baseUrl}/${streamPath}/manifest.mpd`,
       webrtc: webrtcSignalingUrl, // Correct WebSocket signaling URL for OvenPlayer
       webrtcLegacy: `webrtc://${this.config.publicHost}:${this.config.webrtcPort}/${streamPath}`, // Legacy format
@@ -163,7 +165,8 @@ class OutputUrlService {
       const profiles = outputProfiles.map((profile) => ({
         name: profile,
         llhls: `${baseUrl}/${streamPath}/${profile}/llhls.m3u8`,
-        hls: `${baseUrl}/${streamPath}/${profile}/playlist.m3u8`,
+        // Same rationale as above: prefer direct LLHLS manifest over redirect aliases.
+        hls: `${baseUrl}/${streamPath}/${profile}/llhls.m3u8`,
         dash: `${baseUrl}/${streamPath}/${profile}/manifest.mpd`,
       }));
 
