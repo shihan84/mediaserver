@@ -75,7 +75,14 @@ export function OvenPlayer({
     return () => {
       // Cleanup script if component unmounts before loading
       if (!scriptLoadedRef.current) {
-        document.head.removeChild(script);
+        // Guard: avoid NotFoundError if something else already removed the script tag
+        try {
+          if (script.parentNode === document.head) {
+            document.head.removeChild(script);
+          }
+        } catch {
+          // ignore
+        }
       }
     };
   }, [onError]);
