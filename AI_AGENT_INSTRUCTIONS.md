@@ -50,6 +50,45 @@ Fill this out **at the end of each session** (or any time you’re about to swit
 1. …
 2. …
 
+---
+
+## ✅ Session Handoff Summary (LATEST)
+
+**Session Date:** 2025-12-18  
+**Branch / Commit(s):** `main` (latest: `6d8a4d7`)  
+
+**Goal(s) this session**
+- Publish recent changes to GitHub.
+- Improve continuity tracking so future chats/agents can resume with full context.
+- Fix Streams page live preview when streaming under non-default `appName`.
+
+**What changed (high level)**
+- Added a required continuity/handoff protocol and template to this file (already pushed earlier).
+- Fixed live preview by passing `appName` end-to-end and having the backend prefer `?appName=` when resolving streams and generating output URLs.
+
+**Files touched (high signal only)**
+- `frontend/src/pages/StreamsPage.tsx`
+- `frontend/src/components/streaming/InlineStreamPlayer.tsx`
+- `frontend/src/lib/api.ts`
+- `backend/src/routes/streams.ts`
+- `FIXES_SUMMARY.md` (documented live preview fix)
+
+**Current state**
+- **Working tree**: should be clean after pushing commits.
+- **GitHub**: `origin/main` updated through commit `6d8a4d7`.
+
+**How to verify (exact steps)**
+- Start publishing to OME: `rtmp://<OME_HOST>:1935/<appName>/<streamKey>`
+- Open **Streams** page → click an active stream card → Live Preview should load.
+- If preview fails: inspect `GET /api/streams/<streamName>?appName=<appName>` response; confirm `outputs.webrtc/llhls/hls` are present and usable.
+
+**Known issues / risks**
+- If your dashboard is served over HTTPS but OME outputs are HTTP (or ws://), the browser may block playback (mixed content). Prefer HTTPS/WSS where possible.
+
+**Next steps (ordered)**
+1. If preview still fails, capture browser console + Network response for `GET /api/streams/<streamName>?appName=<appName>`.
+2. If mixed-content is the issue, align `CORS_ORIGIN` / `OME_USE_HTTPS` / reverse-proxy so outputs are HTTPS/WSS.
+
 ### Fast “resume work” checklist (new chat / new agent)
 1. Read **this file** top-to-bottom.
 2. Read **`CURRENT_IMPLEMENTATION_STATUS.md`** for the authoritative roadmap/gaps.

@@ -45,3 +45,26 @@
 
 All fixes are deployed! 🎉
 
+---
+
+# Fixes Summary - Streams Page Live Preview Not Showing
+
+## ✅ Issue Fixed
+
+### **Streams Page Live Preview Not Showing While Stream Is Live**
+**Problem**: Live stream exists in OME, but the Streams page preview could not load because the UI only tracked `streamName` and the backend detail endpoint guessed the application (`app`/`live`). When streams were published under a different `appName`, `/api/streams/:streamName` could not reliably resolve the correct app, resulting in missing/incorrect `outputs` and a blank preview.
+
+**Solution**:
+- Frontend now **keeps and passes `appName`** alongside `streamName` when selecting a stream preview.
+- `streamsApi.getById()` now supports `?appName=...` and the preview query key includes `appName` for correct caching.
+- Backend `GET /api/streams/:streamName` now **prefers `req.query.appName`** (tries it first) when looking up the stream and generating output URLs.
+
+## Files Changed
+- `frontend/src/pages/StreamsPage.tsx`
+- `frontend/src/components/streaming/InlineStreamPlayer.tsx`
+- `frontend/src/lib/api.ts`
+- `backend/src/routes/streams.ts`
+
+## Expected Result
+- ✅ If you are streaming to `rtmp://<host>:1935/<appName>/<streamKey>`, the Streams page preview loads reliably for that exact `<appName>`.
+
