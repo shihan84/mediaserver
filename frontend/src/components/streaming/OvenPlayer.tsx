@@ -145,7 +145,9 @@ export function OvenPlayer({
         const playerConfig = {
           sources: normalizedSources,
           autoFallback: true,
-          timecode: true,
+          // Avoid OvenPlayer progressbar/timecode null deref bugs seen in some builds
+          // (Uncaught TypeError: Cannot read properties of null (reading 'isTimecodeMode')).
+          timecode: false,
           controls: true,
           // Allow autoplay in modern browsers
           mute: true,
