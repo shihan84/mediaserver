@@ -224,7 +224,7 @@ function PushPublishingRow({ stream, onStop, canModify }: { stream: any; onStop:
       const response = await pushPublishingApi.getStatus(stream.name);
       return response.data;
     },
-    refetchInterval: 5000,
+    refetchInterval: 15000, // Reduced to avoid rate limits
   });
 
   const pushPublishing = statusData?.pushPublishing;

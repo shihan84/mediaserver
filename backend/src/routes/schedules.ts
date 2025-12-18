@@ -1,209 +1,333 @@
 import { Router, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { AppError } from '../middleware/errorHandler';
 import { authenticate, AuthRequest, requireOperator } from '../middleware/auth';
-import { validateRequest } from '../utils/validation';
-import { createScheduleSchema, updateScheduleSchema } from '../utils/validation';
 import { auditLog } from '../utils/auditLog';
+import { omeClient } from '../utils/omeClient';
 
 const router = Router();
-const prisma = new PrismaClient();
 
-// Get all schedules
+// Get all schedules (from all OME Scheduled Channels)
+// Each Program in a Scheduled Channel is treated as a "schedule"
 router.get('/', authenticate, async (req: AuthRequest, res: Response, next) => {
   try {
-    const { page = '1', limit = '50', channelId, isActive, startDate, endDate } = req.query;
-    const pageNum = parseInt(page as string);
-    const limitNum = parseInt(limit as string);
-    const skip = (pageNum - 1) * limitNum;
-
-    const where: any = {};
-    if (channelId) where.channelId = channelId;
-    if (isActive !== undefined) where.isActive = isActive === 'true';
-    if (startDate || endDate) {
-      where.OR = [];
-      if (startDate) {
-        where.OR.push({ startTime: { gte: new Date(startDate as string) } });
+    const { channelName, status } = req.query;
+    const now = new Date();
+    
+    // Get all scheduled channels from OME
+    const result = await omeClient.getScheduledChannels();
+    let channels: any[] = [];
+    
+    if (result && result.response) {
+      if (Array.isArray(result.response)) {
+        channels = result.response;
+      } else if (result.response.scheduledChannels && Array.isArray(result.response.scheduledChannels)) {
+        channels = result.response.scheduledChannels;
       }
-      if (endDate) {
-        where.OR.push({ endTime: { lte: new Date(endDate as string) } });
-      }
+    } else if (Array.isArray(result)) {
+      channels = result;
+    } else if (result && result.scheduledChannels && Array.isArray(result.scheduledChannels)) {
+      channels = result.scheduledChannels;
     }
 
-    const [schedules, total] = await Promise.all([
-      prisma.schedule.findMany({
-        where,
-        include: {
-          channel: {
-            select: {
-              id: true,
-              name: true
-            }
-          },
-          user: {
-            select: {
-              id: true,
-              username: true
-            }
-          }
-        },
-        orderBy: { startTime: 'asc' },
-        skip,
-        take: limitNum
-      }),
-      prisma.schedule.count({ where })
-    ]);
+    // Extract all programs as schedules
+    const allSchedules: any[] = [];
+    
+    channels.forEach((channel: any) => {
+      // Filter by channel name if provided
+      if (channelName && channel.name !== channelName) {
+        return;
+      }
+
+      const channelName_val = channel.name || channel.stream?.name || 'unknown';
+      const programs = channel.programs || [];
+      
+      programs.forEach((program: any, index: number) => {
+        const scheduledTime = new Date(program.scheduled);
+        const programEndTime = new Date(scheduledTime);
+        
+        // Calculate end time from items duration
+        if (program.items && Array.isArray(program.items)) {
+          const totalDuration = program.items.reduce((sum: number, item: any) => {
+            return sum + (item.duration || 0);
+          }, 0);
+          programEndTime.setTime(programEndTime.getTime() + totalDuration);
+        } else {
+          // Default to 1 hour if no duration
+          programEndTime.setTime(programEndTime.getTime() + 3600000);
+        }
+
+        let scheduleStatus = 'upcoming';
+        if (programEndTime < now) {
+          scheduleStatus = 'past';
+        } else if (scheduledTime <= now && programEndTime >= now) {
+          scheduleStatus = 'current';
+        }
+
+        // Filter by status if provided
+        if (status && scheduleStatus !== status) {
+          return;
+        }
+
+        allSchedules.push({
+          id: `${channelName_val}-${program.name || index}`,
+          name: program.name || `Program ${index + 1}`,
+          channelName: channelName_val,
+          scheduledTime: program.scheduled,
+          startTime: scheduledTime.toISOString(),
+          endTime: programEndTime.toISOString(),
+          repeat: program.repeat || false,
+          items: program.items || [],
+          status: scheduleStatus,
+          isActive: true
+        });
+      });
+    });
+
+    // Sort by scheduled time
+    allSchedules.sort((a, b) => new Date(a.scheduledTime).getTime() - new Date(b.scheduledTime).getTime());
 
     res.json({
-      schedules,
-      pagination: {
-        page: pageNum,
-        limit: limitNum,
-        total,
-        pages: Math.ceil(total / limitNum)
-      }
+      schedules: allSchedules
     });
   } catch (error) {
     next(error);
   }
 });
 
-// Get schedule by ID
+// Get schedule by ID (format: channelName-programName)
 router.get('/:id', authenticate, async (req: AuthRequest, res: Response, next) => {
   try {
-    const schedule = await prisma.schedule.findUnique({
-      where: { id: req.params.id },
-      include: {
-        channel: true,
-        user: {
-          select: {
-            id: true,
-            username: true,
-            email: true
-          }
-        }
-      }
-    });
+    const [channelName, programName] = req.params.id.split('-');
+    
+    const result = await omeClient.getScheduledChannel(channelName);
+    let channel: any = null;
+    
+    if (result && result.response) {
+      channel = result.response;
+    } else if (result && typeof result === 'object') {
+      channel = result;
+    }
 
-    if (!schedule) {
+    if (!channel) {
+      throw new AppError('Scheduled channel not found', 404, 'CHANNEL_NOT_FOUND');
+    }
+
+    const programs = channel.programs || [];
+    const program = programs.find((p: any) => (p.name || '') === programName);
+
+    if (!program) {
       throw new AppError('Schedule not found', 404, 'SCHEDULE_NOT_FOUND');
     }
 
-    res.json({ schedule });
+    const scheduledTime = new Date(program.scheduled);
+    const programEndTime = new Date(scheduledTime);
+    
+    if (program.items && Array.isArray(program.items)) {
+      const totalDuration = program.items.reduce((sum: number, item: any) => {
+        return sum + (item.duration || 0);
+      }, 0);
+      programEndTime.setTime(programEndTime.getTime() + totalDuration);
+    } else {
+      programEndTime.setTime(programEndTime.getTime() + 3600000);
+    }
+
+    res.json({
+      schedule: {
+        id: req.params.id,
+        name: program.name || 'Program',
+        channelName: channelName,
+        scheduledTime: program.scheduled,
+        startTime: scheduledTime.toISOString(),
+        endTime: programEndTime.toISOString(),
+        repeat: program.repeat || false,
+        items: program.items || []
+      }
+    });
   } catch (error) {
     next(error);
   }
 });
 
-// Create schedule
+// Create schedule (adds a program to an existing scheduled channel or creates a new one)
 router.post('/', authenticate, requireOperator, async (req: AuthRequest, res: Response, next) => {
   try {
-    const data = validateRequest(createScheduleSchema)(req.body);
-    const { startTime, endTime } = data;
+    const { channelName, programName, scheduled, repeat, items, streamConfig } = req.body;
 
-    // Validate time range
-    if (new Date(startTime) >= new Date(endTime)) {
-      throw new AppError('End time must be after start time', 400, 'VALIDATION_ERROR');
+    if (!channelName || !scheduled || !items || !Array.isArray(items) || items.length === 0) {
+      throw new AppError('Channel name, scheduled time, and at least one item are required', 400, 'VALIDATION_ERROR');
     }
 
-    // Verify channel exists
-    const channel = await prisma.channel.findUnique({
-      where: { id: data.channelId }
-    });
-
-    if (!channel) {
-      throw new AppError('Channel not found', 404, 'CHANNEL_NOT_FOUND');
-    }
-
-    const schedule = await prisma.schedule.create({
-      data: {
-        ...data,
-        userId: req.user!.id,
-        startTime: new Date(startTime),
-        endTime: new Date(endTime)
-      },
-      include: {
-        channel: true
+    // Validate items
+    for (const item of items) {
+      if (!item.url || (!item.url.startsWith('file://') && !item.url.startsWith('stream://'))) {
+        throw new AppError('Items must have a valid URL starting with file:// or stream://', 400, 'VALIDATION_ERROR');
       }
-    });
+    }
 
-    auditLog(req.user!.id, 'SCHEDULE_CREATED', 'Schedule', { scheduleId: schedule.id, channelId: data.channelId }, req.ip, req.get('user-agent'));
+    // Try to get existing channel
+    let existingChannel: any = null;
+    try {
+      const result = await omeClient.getScheduledChannel(channelName);
+      if (result && result.response) {
+        existingChannel = result.response;
+      } else if (result && typeof result === 'object') {
+        existingChannel = result;
+      }
+    } catch (err) {
+      // Channel doesn't exist, we'll create it
+    }
+
+    const newProgram = {
+      name: programName || undefined,
+      scheduled: new Date(scheduled).toISOString(),
+      repeat: repeat || false,
+      items: items.map((item: any) => ({
+        url: item.url,
+        start: item.start || undefined,
+        duration: item.duration || undefined
+      }))
+    };
+
+    if (existingChannel) {
+      // Update existing channel - add new program
+      const programs = existingChannel.programs || [];
+      programs.push(newProgram);
+      
+      await omeClient.updateScheduledChannel(channelName, {
+        programs
+      });
+    } else {
+      // Create new scheduled channel
+      await omeClient.createScheduledChannel(channelName, {
+        stream: streamConfig || {
+          name: channelName,
+          bypassTranscoder: false,
+          videoTrack: true,
+          audioTrack: true
+        },
+        programs: [newProgram]
+      });
+    }
+
+    auditLog(req.user!.id, 'SCHEDULE_CREATED', 'Schedule', { channelName, programName }, req.ip, req.get('user-agent'));
 
     res.status(201).json({
       message: 'Schedule created successfully',
-      schedule
+      schedule: {
+        channelName,
+        programName,
+        scheduled,
+        repeat,
+        items
+      }
     });
   } catch (error) {
     next(error);
   }
 });
 
-// Update schedule
+// Update schedule (updates a program in a scheduled channel)
 router.put('/:id', authenticate, requireOperator, async (req: AuthRequest, res: Response, next) => {
   try {
-    const data = validateRequest(updateScheduleSchema)(req.body);
+    const [channelName, programName] = req.params.id.split('-');
+    const { scheduled, repeat, items } = req.body;
 
-    const existingSchedule = await prisma.schedule.findUnique({
-      where: { id: req.params.id }
-    });
+    // Get existing channel
+    const result = await omeClient.getScheduledChannel(channelName);
+    let channel: any = null;
+    
+    if (result && result.response) {
+      channel = result.response;
+    } else if (result && typeof result === 'object') {
+      channel = result;
+    }
 
-    if (!existingSchedule) {
+    if (!channel) {
+      throw new AppError('Scheduled channel not found', 404, 'CHANNEL_NOT_FOUND');
+    }
+
+    const programs = channel.programs || [];
+    const programIndex = programs.findIndex((p: any) => (p.name || '') === programName);
+
+    if (programIndex === -1) {
       throw new AppError('Schedule not found', 404, 'SCHEDULE_NOT_FOUND');
     }
 
-    // Validate time range if both are provided
-    if (data.startTime && data.endTime) {
-      if (new Date(data.startTime) >= new Date(data.endTime)) {
-        throw new AppError('End time must be after start time', 400, 'VALIDATION_ERROR');
+    // Update program
+    if (scheduled) programs[programIndex].scheduled = new Date(scheduled).toISOString();
+    if (repeat !== undefined) programs[programIndex].repeat = repeat;
+    if (items && Array.isArray(items)) {
+      // Validate items
+      for (const item of items) {
+        if (!item.url || (!item.url.startsWith('file://') && !item.url.startsWith('stream://'))) {
+          throw new AppError('Items must have a valid URL starting with file:// or stream://', 400, 'VALIDATION_ERROR');
+        }
       }
+      programs[programIndex].items = items.map((item: any) => ({
+        url: item.url,
+        start: item.start || undefined,
+        duration: item.duration || undefined
+      }));
     }
 
-    const updateData: any = { ...data };
-    if (data.startTime) updateData.startTime = new Date(data.startTime);
-    if (data.endTime) updateData.endTime = new Date(data.endTime);
-
-    const schedule = await prisma.schedule.update({
-      where: { id: req.params.id },
-      data: updateData,
-      include: {
-        channel: true
-      }
+    await omeClient.updateScheduledChannel(channelName, {
+      programs
     });
 
-    auditLog(req.user!.id, 'SCHEDULE_UPDATED', 'Schedule', { scheduleId: schedule.id, changes: data }, req.ip, req.get('user-agent'));
+    auditLog(req.user!.id, 'SCHEDULE_UPDATED', 'Schedule', { channelName, programName }, req.ip, req.get('user-agent'));
 
     res.json({
       message: 'Schedule updated successfully',
-      schedule
+      schedule: {
+        channelName,
+        programName,
+        ...programs[programIndex]
+      }
     });
   } catch (error) {
     next(error);
   }
 });
 
-// Delete schedule
+// Delete schedule (removes a program from a scheduled channel)
 router.delete('/:id', authenticate, requireOperator, async (req: AuthRequest, res: Response, next) => {
   try {
-    const schedule = await prisma.schedule.findUnique({
-      where: { id: req.params.id }
-    });
+    const [channelName, programName] = req.params.id.split('-');
 
-    if (!schedule) {
-      throw new AppError('Schedule not found', 404, 'SCHEDULE_NOT_FOUND');
+    // Get existing channel
+    const result = await omeClient.getScheduledChannel(channelName);
+    let channel: any = null;
+    
+    if (result && result.response) {
+      channel = result.response;
+    } else if (result && typeof result === 'object') {
+      channel = result;
     }
 
-    await prisma.schedule.delete({
-      where: { id: req.params.id }
+    if (!channel) {
+      throw new AppError('Scheduled channel not found', 404, 'CHANNEL_NOT_FOUND');
+    }
+
+    const programs = (channel.programs || []).filter((p: any) => (p.name || '') !== programName);
+
+    // If no programs left, delete the entire scheduled channel
+    if (programs.length === 0) {
+      await omeClient.deleteScheduledChannel(channelName);
+    } else {
+      // Update channel with remaining programs
+      await omeClient.updateScheduledChannel(channelName, {
+        programs
+      });
+    }
+
+    auditLog(req.user!.id, 'SCHEDULE_DELETED', 'Schedule', { channelName, programName }, req.ip, req.get('user-agent'));
+
+    res.json({
+      message: 'Schedule deleted successfully'
     });
-
-    auditLog(req.user!.id, 'SCHEDULE_DELETED', 'Schedule', { scheduleId: req.params.id }, req.ip, req.get('user-agent'));
-
-    res.json({ message: 'Schedule deleted successfully' });
   } catch (error) {
     next(error);
   }
 });
 
 export { router as schedulesRouter };
-
-

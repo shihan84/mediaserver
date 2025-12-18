@@ -40,6 +40,11 @@ api.interceptors.response.use(
       useAuthStore.getState().logout();
       window.location.href = '/login';
     }
+    // Handle 429 rate limit errors - don't show toast for every one
+    if (error.response?.status === 429) {
+      console.warn('Rate limit exceeded, requests will be retried with backoff');
+      // Don't throw immediately - let react-query handle retry with backoff
+    }
     return Promise.reject(error);
   }
 );
@@ -114,22 +119,6 @@ export const securityApi = {
     api.get('/streams/security/admission-webhooks', { params: { vhostName } }),
 };
 
-export const omeApi = {
-  getStats: () => api.get('/ome/stats'),
-  getVirtualHosts: () => api.get('/ome/vhosts'),
-  getVirtualHost: (vhostName: string) => api.get(`/ome/vhosts/${vhostName}`),
-  getApplications: (vhostName: string) => api.get(`/ome/vhosts/${vhostName}/apps`),
-  getApplication: (vhostName: string, appName: string) => 
-    api.get(`/ome/vhosts/${vhostName}/apps/${appName}`),
-  getOutputProfiles: (vhostName: string, appName: string) =>
-    api.get(`/ome/vhosts/${vhostName}/apps/${appName}/outputProfiles`),
-  getThumbnail: (streamName: string) => api.get(`/ome/streams/${streamName}/thumbnail`),
-  getEvents: (params?: { vhostName?: string; limit?: number; offset?: number }) =>
-    api.get('/ome/events', { params }),
-  getEventWebhooks: (vhostName?: string) =>
-    api.get('/ome/events/webhooks', { params: { vhostName } }),
-};
-
 export const tasksApi = {
   getAll: (params?: any) => api.get('/tasks', { params }),
   getById: (id: string) => api.get(`/tasks/${id}`),
@@ -176,6 +165,15 @@ export const scheduledChannelsApi = {
   delete: (channelName: string) => api.delete(`/scheduled-channels/${channelName}`),
 };
 
+export const distributorsApi = {
+  getByChannel: (channelId: string) => api.get(`/distributors/channel/${channelId}`),
+  getById: (id: string) => api.get(`/distributors/${id}`),
+  create: (data: any) => api.post('/distributors', data),
+  update: (id: string, data: any) => api.put(`/distributors/${id}`, data),
+  delete: (id: string) => api.delete(`/distributors/${id}`),
+  insertPreroll: (id: string) => api.post(`/distributors/${id}/insert-preroll`),
+};
+
 export const omeApi = {
   getStats: () => api.get('/ome/stats'),
   getVirtualHosts: () => api.get('/ome/vhosts'),
@@ -185,16 +183,35 @@ export const omeApi = {
     api.get(`/ome/vhosts/${vhostName}/apps/${appName}`),
   getOutputProfiles: (vhostName: string, appName: string) =>
     api.get(`/ome/vhosts/${vhostName}/apps/${appName}/outputProfiles`),
+  getOutputProfile: (vhostName: string, appName: string, profileName: string) =>
+    api.get(`/ome/vhosts/${vhostName}/apps/${appName}/outputProfiles/${profileName}`),
+  createOutputProfile: (vhostName: string, appName: string, profile: any) =>
+    api.post(`/ome/vhosts/${vhostName}/apps/${appName}/outputProfiles`, profile),
+  updateOutputProfile: (vhostName: string, appName: string, profileName: string, profile: any) =>
+    api.put(`/ome/vhosts/${vhostName}/apps/${appName}/outputProfiles/${profileName}`, profile),
+  deleteOutputProfile: (vhostName: string, appName: string, profileName: string) =>
+    api.delete(`/ome/vhosts/${vhostName}/apps/${appName}/outputProfiles/${profileName}`),
+  getRtspProviders: (vhostName: string, appName: string) =>
+    api.get(`/ome/vhosts/${vhostName}/apps/${appName}/rtspProviders`),
+  createRtspProvider: (vhostName: string, appName: string, provider: any) =>
+    api.post(`/ome/vhosts/${vhostName}/apps/${appName}/rtspProviders`, provider),
+  updateRtspProvider: (vhostName: string, appName: string, providerName: string, provider: any) =>
+    api.put(`/ome/vhosts/${vhostName}/apps/${appName}/rtspProviders/${providerName}`, provider),
+  deleteRtspProvider: (vhostName: string, appName: string, providerName: string) =>
+    api.delete(`/ome/vhosts/${vhostName}/apps/${appName}/rtspProviders/${providerName}`),
+  getAdmissionWebhooks: (vhostName: string) =>
+    api.get(`/ome/vhosts/${vhostName}/admissionWebhooks`),
+  createAdmissionWebhook: (vhostName: string, webhook: any) =>
+    api.post(`/ome/vhosts/${vhostName}/admissionWebhooks`, webhook),
+  updateAdmissionWebhook: (vhostName: string, webhookId: string, webhook: any) =>
+    api.put(`/ome/vhosts/${vhostName}/admissionWebhooks/${webhookId}`, webhook),
+  deleteAdmissionWebhook: (vhostName: string, webhookId: string) =>
+    api.delete(`/ome/vhosts/${vhostName}/admissionWebhooks/${webhookId}`),
   getThumbnail: (streamName: string) => api.get(`/ome/streams/${streamName}/thumbnail`),
-};
-
-export const distributorsApi = {
-  getByChannel: (channelId: string) => api.get(`/distributors/channel/${channelId}`),
-  getById: (id: string) => api.get(`/distributors/${id}`),
-  create: (data: any) => api.post('/distributors', data),
-  update: (id: string, data: any) => api.put(`/distributors/${id}`, data),
-  delete: (id: string) => api.delete(`/distributors/${id}`),
-  insertPreroll: (id: string) => api.post(`/distributors/${id}/insert-preroll`),
+  getEvents: (params?: { vhostName?: string; limit?: number; offset?: number }) =>
+    api.get('/ome/events', { params }),
+  getEventWebhooks: (vhostName?: string) =>
+    api.get('/ome/events/webhooks', { params: { vhostName } }),
 };
 
 

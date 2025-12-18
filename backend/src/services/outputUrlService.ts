@@ -24,16 +24,54 @@ class OutputUrlService {
 
   constructor() {
     // Load configuration from environment variables
+    // Use public host from env or try to extract from CORS_ORIGIN, fallback to localhost
+    let defaultHost = 'localhost';
+    if (process.env.CORS_ORIGIN) {
+      try {
+        const corsUrl = new URL(process.env.CORS_ORIGIN);
+        defaultHost = corsUrl.hostname;
+      } catch (e) {
+        // Invalid URL, use default
+      }
+    }
+    
+    // Check CORS_ORIGIN first to determine HTTPS
+    let useHttpsFromCors = false;
+    let hostFromCors = defaultHost;
+    
+    if (process.env.CORS_ORIGIN) {
+      try {
+        const corsUrl = new URL(process.env.CORS_ORIGIN);
+        hostFromCors = corsUrl.hostname;
+        // If CORS_ORIGIN uses https, enable HTTPS
+        if (corsUrl.protocol === 'https:') {
+          useHttpsFromCors = true;
+        }
+        logger.info('Detected settings from CORS_ORIGIN', { 
+          host: hostFromCors,
+          useHttps: useHttpsFromCors 
+        });
+      } catch (e) {
+        logger.warn('Could not parse CORS_ORIGIN', { corsOrigin: process.env.CORS_ORIGIN });
+      }
+    }
+    
     this.config = {
-      publicHost: process.env.OME_PUBLIC_HOST || process.env.OME_HOST || 'localhost',
+      publicHost: process.env.OME_PUBLIC_HOST || process.env.OME_HOST || hostFromCors,
       publicPort: parseInt(process.env.OME_PUBLIC_PORT || '3333'),
       publicPortHttp: parseInt(process.env.OME_PUBLIC_PORT_HTTP || '3334'),
       srtPort: parseInt(process.env.OME_SRT_PORT || '9998'),
       webrtcPort: parseInt(process.env.OME_WEBRTC_PORT || '3333'),
       vhost: process.env.OME_VHOST || 'default',
       app: process.env.OME_APP || 'app',
-      useHttps: process.env.OME_USE_HTTPS === 'true' || false,
+      useHttps: process.env.OME_USE_HTTPS === 'true' || useHttpsFromCors,
     };
+    
+    logger.info('OutputUrlService initialized', { 
+      publicHost: this.config.publicHost,
+      publicPort: this.config.publicPort,
+      useHttps: this.config.useHttps
+    });
   }
 
   /**
@@ -78,15 +116,31 @@ class OutputUrlService {
     }>;
   } {
     const protocol = this.config.useHttps ? 'https' : 'http';
-    const baseUrl = `${protocol}://${this.config.publicHost}:${this.config.publicPort}`;
+    
+    // For HTTPS, typically no port needed (standard 443) or use configured port
+    // For HTTP, use configured port
+    const port = this.config.useHttps 
+      ? (this.config.publicPort === 443 ? '' : `:${this.config.publicPort}`)
+      : `:${this.config.publicPort}`;
+    
+    const baseUrl = `${protocol}://${this.config.publicHost}${port}`;
     const baseUrlHttp = `http://${this.config.publicHost}:${this.config.publicPortHttp}`;
+    
     // Use provided appName or default from config
     const app = appName || this.config.app;
-    const streamPath = `${this.config.vhost}/${app}/${streamName}`;
+    
+    // OME URL format: /vhost/app/stream or just /app/stream if vhost is default
+    // Most OME deployments use /app/stream format
+    const streamPath = this.config.vhost === 'default' 
+      ? `${app}/${streamName}`
+      : `${this.config.vhost}/${app}/${streamName}`;
 
-    // WebRTC uses WebSocket signaling (ws:// or wss://), not webrtc://
+    // WebRTC uses WebSocket signaling (ws:// or wss://)
     const webrtcProtocol = this.config.useHttps ? 'wss' : 'ws';
-    const webrtcSignalingUrl = `${webrtcProtocol}://${this.config.publicHost}:${this.config.webrtcPort}/${streamPath}`;
+    const webrtcPort = this.config.useHttps 
+      ? (this.config.webrtcPort === 443 ? '' : `:${this.config.webrtcPort}`)
+      : `:${this.config.webrtcPort}`;
+    const webrtcSignalingUrl = `${webrtcProtocol}://${this.config.publicHost}${webrtcPort}/${streamPath}`;
 
     const outputs = {
       llhls: `${baseUrl}/${streamPath}/llhls.m3u8`,

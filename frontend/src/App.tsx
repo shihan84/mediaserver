@@ -13,10 +13,10 @@ import { ChatPage } from './pages/ChatPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { RecordingsPage } from './pages/RecordingsPage';
 import { PushPublishingPage } from './pages/PushPublishingPage';
-import { ScheduledChannelsPage } from './pages/ScheduledChannelsPage';
 import { OMEManagementPage } from './pages/OMEManagementPage';
 import { DistributorsPage } from './pages/DistributorsPage';
 import { EventMonitoringPage } from './pages/EventMonitoringPage';
+import { AccessControlPage } from './pages/AccessControlPage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
@@ -46,8 +46,8 @@ function App() {
         <Route path="settings" element={<SettingsPage />} />
         <Route path="recordings" element={<RecordingsPage />} />
         <Route path="push-publishing" element={<PushPublishingPage />} />
-        <Route path="scheduled-channels" element={<ScheduledChannelsPage />} />
         <Route path="ome-management" element={<OMEManagementPage />} />
+        <Route path="access-control" element={<AccessControlPage />} />
         <Route path="event-monitoring" element={<EventMonitoringPage />} />
         <Route path="distributors/:channelId" element={<DistributorsPage />} />
         <Route path="distributors" element={<DistributorsPage />} />

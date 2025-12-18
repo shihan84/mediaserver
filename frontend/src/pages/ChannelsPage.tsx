@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { channelsApi } from '../lib/api';
+import { channelsApi, streamsApi } from '../lib/api';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -8,7 +8,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { useAuthStore } from '../store/authStore';
 import toast from 'react-hot-toast';
 import { formatDate } from '../lib/utils';
-import { ChannelDetailModal } from '../components/ChannelDetailModal';
+import { ChannelDetailModal } from '../components/streaming/ChannelDetailModal';
+import { StreamDetailModal } from '../components/streaming/StreamDetailModal';
+import { ChannelMetricsCard } from '../components/streaming/ChannelMetricsCard';
 import { Settings } from 'lucide-react';
 
 export function ChannelsPage() {
@@ -32,6 +34,7 @@ export function ChannelsPage() {
   const [editVodFallbackFiles, setEditVodFallbackFiles] = useState<string[]>([]);
   const [editVodFallbackDelay, setEditVodFallbackDelay] = useState(5);
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
+  const [selectedStream, setSelectedStream] = useState<{ streamName: string; channel?: any } | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['channels'],
@@ -39,6 +42,22 @@ export function ChannelsPage() {
       const response = await channelsApi.getAll();
       return response.data;
     },
+    refetchInterval: 15000, // Refresh every 15 seconds to reduce load
+  });
+
+  // Fetch active streams to match with channels
+  const { data: streamsData } = useQuery({
+    queryKey: ['streams'],
+    queryFn: async () => {
+      try {
+        const response = await streamsApi.getAll();
+        return response.data;
+      } catch (err: any) {
+        console.error('Error fetching streams:', err);
+        return { streams: [], channels: [] };
+      }
+    },
+    refetchInterval: 15000, // Refresh every 15 seconds for live metrics (reduced to avoid rate limits)
   });
 
   const createMutation = useMutation({
@@ -184,11 +203,61 @@ export function ChannelsPage() {
   }
 
   const canModify = user?.role === 'ADMIN' || user?.role === 'OPERATOR';
+  
+  // Match streams with channels
+  const streams = streamsData?.streams || [];
+  const allChannels = data?.channels || [];
+  
+  // Create stream map by streamKey and appName for accurate matching
+  const streamMap = new Map(
+    streams.map((s: any) => [`${s.appName || 'app'}:${s.name}`, s])
+  );
+  
+  // Check which channels have active streams (match by streamKey AND appName)
+  const channelsWithStreams = allChannels.map((ch: any) => {
+    const streamKey = `${ch.appName || 'app'}:${ch.streamKey}`;
+    const matchedStream = streamMap.get(streamKey);
+    
+    return {
+      ...ch,
+      hasActiveStream: !!matchedStream,
+      activeStream: matchedStream || null
+    };
+  });
+  
+  const activeChannels = channelsWithStreams.filter((ch: any) => ch.hasActiveStream);
+  const inactiveChannels = channelsWithStreams.filter((ch: any) => !ch.hasActiveStream);
 
   return (
-    <div>
+    <div className="space-y-6">
+      {/* Stream Detail Modal */}
+      <StreamDetailModal
+        streamName={selectedStream?.streamName || null}
+        channel={selectedStream?.channel}
+        open={!!selectedStream}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedStream(null);
+          }
+        }}
+      />
+      
+      {/* Channel Detail Modal */}
+      <ChannelDetailModal
+        channelId={selectedChannelId}
+        open={!!selectedChannelId}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedChannelId(null);
+          }
+        }}
+      />
+
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Channels</h1>
+        <div>
+          <h1 className="text-3xl font-bold">Channel Management</h1>
+          <p className="text-muted-foreground mt-1">Configure and manage your streaming channel endpoints and settings</p>
+        </div>
         {canModify && (
           <Button 
             type="button"
@@ -368,9 +437,94 @@ export function ChannelsPage() {
         </Card>
       )}
 
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-2xl font-bold">{allChannels.length}</div>
+            <p className="text-xs text-muted-foreground mt-1">Total Channels</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-2xl font-bold text-green-600">{activeChannels.length}</div>
+            <p className="text-xs text-muted-foreground mt-1">Active Streams</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-2xl font-bold text-orange-600">{inactiveChannels.length}</div>
+            <p className="text-xs text-muted-foreground mt-1">Ready to Stream</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-2xl font-bold text-blue-600">
+              {activeChannels.length > 0 ? activeChannels.length * 0 : 0}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Total Viewers</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Active Channels with Live Metrics */}
+      {activeChannels.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+              Active Channels ({activeChannels.length})
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">Channels with live streams and real-time metrics</p>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {activeChannels.map((channel: any) => (
+                <ChannelMetricsCard
+                  key={channel.id}
+                  channel={channel}
+                  stream={channel.activeStream}
+                  canModify={canModify}
+                  onEdit={handleEdit}
+                  onDelete={(id) => deleteMutation.mutate(id)}
+                />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Inactive Channels */}
+      {inactiveChannels.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
+              Inactive Channels ({inactiveChannels.length})
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">Channels ready to stream</p>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {inactiveChannels.map((channel: any) => (
+                <ChannelMetricsCard
+                  key={channel.id}
+                  channel={channel}
+                  stream={null}
+                  canModify={canModify}
+                  onEdit={handleEdit}
+                  onDelete={(id) => deleteMutation.mutate(id)}
+                />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Table View (fallback/editing) */}
       <Card>
         <CardHeader>
-          <CardTitle>All Channels</CardTitle>
+          <CardTitle>All Channels (Table View)</CardTitle>
         </CardHeader>
         <CardContent>
           <Table>

@@ -46,30 +46,37 @@ class ScheduledChannelService {
       // 1. Plays live stream (stream://default/app/{streamKey}) continuously
       // 2. Automatically falls back to VOD files when live stream is unavailable
       // 3. Returns to live stream when it becomes available again
-      const schedule = [
-        {
-          // FallbackProgram: Automatically activates when live stream is unavailable
-          type: 'FallbackProgram',
+      const channelData = {
+        stream: {
+          name: channel.name,
+          bypassTranscoder: false,
+          videoTrack: true,
+          audioTrack: true
+        },
+        fallbackProgram: {
           items: fallbackItems
         },
-        {
-          // Main program: Live stream that runs continuously
-          type: 'Program',
-          name: 'live',
-          scheduled: '2000-01-01T00:00:00.000Z', // Set to past to always be active
-          repeat: true,
-          items: [
-            {
-              url: `stream://default/app/${channel.streamKey}`,
-              duration: -1 // Play indefinitely until stream stops
-            }
-          ]
-        }
-      ];
+        programs: [
+          {
+            name: 'live',
+            scheduled: '2000-01-01T00:00:00.000Z', // Set to past to always be active
+            repeat: true,
+            items: [
+              {
+                url: `stream://default/${channel.appName || 'app'}/${channel.streamKey}`,
+                duration: -1 // Play indefinitely until stream stops
+              }
+            ]
+          }
+        ]
+      };
 
       try {
         // Try to update existing scheduled channel
-        await omeClient.updateScheduledChannel(channel.name, schedule);
+        await omeClient.updateScheduledChannel(channel.name, {
+          fallbackProgram: channelData.fallbackProgram,
+          programs: channelData.programs
+        });
         logger.info('Scheduled channel updated with VOD fallback', {
           channelId: channel.id,
           channelName: channel.name
@@ -77,7 +84,7 @@ class ScheduledChannelService {
       } catch (error: any) {
         // If doesn't exist, create it
         if (error.response?.status === 404) {
-          await omeClient.createScheduledChannel(channel.name, schedule);
+          await omeClient.createScheduledChannel(channel.name, channelData);
           logger.info('Scheduled channel created with VOD fallback', {
             channelId: channel.id,
             channelName: channel.name

@@ -1,21 +1,22 @@
 import { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from './ui/dialog';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { Copy, ExternalLink, Monitor, Activity, Link2, Heart, Users, Radio, AlertCircle, CheckCircle, XCircle, Video, Headphones, Settings, Clock, Rewind, Shield } from 'lucide-react';
-import { streamsApi, scte35Api, securityApi } from '../lib/api';
+} from '../ui/dialog';
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Copy, ExternalLink, Monitor, Activity, Link2, Users, Radio, CheckCircle, XCircle, Video, Settings, Clock, Rewind, Shield } from 'lucide-react';
+import { streamsApi, scte35Api } from '../../lib/api';
 import toast from 'react-hot-toast';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { formatBytes } from '../lib/utils';
 import { OvenPlayer } from './OvenPlayer';
+import { DVRControls } from './DVRControls';
+import { Scte35Timeline } from './Scte35Timeline';
 
 interface StreamDetailModalProps {
   streamName: string | null;
@@ -30,10 +31,13 @@ export function StreamDetailModal({
   open,
   onOpenChange,
 }: StreamDetailModalProps) {
+  const queryClient = useQueryClient();
   const [selectedOutputUrl, setSelectedOutputUrl] = useState<string>('');
-  const [selectedProtocol, setSelectedProtocol] = useState<'webrtc' | 'llhls' | 'hls'>('llhls');
   const [selectedQuality, setSelectedQuality] = useState<string>('auto');
-  const [playerError, setPlayerError] = useState<string>('');
+  const [playerInstance, setPlayerInstance] = useState<any>(null);
+  const [currentTime, setCurrentTime] = useState<number>(0);
+  const [duration, setDuration] = useState<number>(0);
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
 
   // Fetch stream details
   const { data: streamData, isLoading, error } = useQuery({
@@ -44,18 +48,15 @@ export function StreamDetailModal({
       return response.data;
     },
     enabled: open && !!streamName,
-    refetchInterval: 5000, // Refetch every 5 seconds for live data
+    refetchInterval: 10000, // Refetch every 10 seconds for live data (reduced frequency)
   });
 
   const stream = streamData?.stream;
   const streamChannel = streamData?.channel || channel;
   const metrics = streamData?.metrics || [];
-  const omeMetrics = streamData?.omeMetrics;
   const outputs = streamData?.outputs;
   const streamHealth = streamData?.streamHealth;
-  const streamStats = streamData?.streamStats;
   const streamTracks = streamData?.streamTracks;
-  const streamStatistics = streamData?.streamStatistics;
   const viewerCount = streamData?.viewerCount;
   const recordingStatus = streamData?.recordingStatus;
   const pushPublishingStatus = streamData?.pushPublishingStatus;
@@ -69,7 +70,7 @@ export function StreamDetailModal({
       return response.data;
     },
     enabled: open && !!streamName,
-    refetchInterval: 5000,
+    refetchInterval: 10000, // Reduced frequency to avoid rate limits
   });
 
   const dvrStatus = dvrData?.dvr;
@@ -145,7 +146,7 @@ export function StreamDetailModal({
     .reverse()
     .map((m: any) => ({
       time: new Date(m.timestamp).toLocaleTimeString(),
-      bitrate: m.bitrate ? (m.bitrate / 1000).toFixed(0) : 0, // Convert to kbps
+      bitrate: m.bitrate && typeof m.bitrate === 'number' ? Number((m.bitrate / 1000).toFixed(0)) : 0, // Convert to kbps
       fps: m.fps || 0,
       viewers: m.viewers || 0,
     }));
@@ -200,119 +201,200 @@ export function StreamDetailModal({
             )}
 
             {/* Video Player Section with OvenPlayer */}
-            {playerSources.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Monitor className="w-4 h-4" />
-                    Stream Player
-                    {viewerCount && (
-                      <span className="ml-auto flex items-center gap-1 text-sm font-normal text-muted-foreground">
-                        <Users className="w-4 h-4" />
-                        {viewerCount.total} viewers
-                      </span>
-                    )}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <OvenPlayer
-                    sources={playerSources}
-                    renditions={outputs?.profiles || []}
-                    enableQualitySelection={!!outputs?.profiles && outputs.profiles.length > 0}
-                    onError={(err) => {
-                      setPlayerError(err.message || 'Player error occurred');
-                      toast.error('Failed to load stream in player');
-                    }}
-                    onReady={() => {
-                      setPlayerError('');
-                    }}
-                    onQualityChange={(quality) => {
-                      setSelectedQuality(quality);
-                    }}
-                  />
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Monitor className="w-4 h-4" />
+                  Stream Player
+                  {viewerCount && (
+                    <span className="ml-auto flex items-center gap-1 text-sm font-normal text-muted-foreground">
+                      <Users className="w-4 h-4" />
+                      {viewerCount.total} viewers
+                    </span>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {playerSources.length > 0 ? (
+                  <>
+                    <OvenPlayer
+                      sources={playerSources}
+                      renditions={outputs?.profiles || []}
+                      enableQualitySelection={!!outputs?.profiles && outputs.profiles.length > 0}
+                      enableDvr={!!dvrStatus?.enabled && !!dvrStatus?.available}
+                      onError={(err) => {
+                        toast.error(err.message || 'Failed to load stream in player');
+                      }}
+                      onReady={() => {
+                        // Player ready
+                      }}
+                      onQualityChange={(quality) => {
+                        setSelectedQuality(quality);
+                      }}
+                      onTimeUpdate={(time, dur) => {
+                        setCurrentTime(time);
+                        setDuration(dur || dvrStatus?.window || 0);
+                      }}
+                      onPlayerReady={(instance) => {
+                        setPlayerInstance(instance);
+                        // Track playing state
+                        if (instance) {
+                          try {
+                            if (typeof instance.getState === 'function') {
+                              const state = instance.getState();
+                              setIsPlaying(state === 'playing');
+                            }
+                            // Listen for state changes
+                            if (typeof instance.on === 'function') {
+                              instance.on('stateChanged', (stateData: any) => {
+                                setIsPlaying(stateData?.newstate === 'playing');
+                              });
+                            }
+                          } catch (e) {
+                            console.warn('Error setting up player state tracking:', e);
+                          }
+                        }
+                      }}
+                    />
 
-                  {/* Quality Selection */}
-                  {outputs?.profiles && outputs.profiles.length > 0 && (
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Quality Selection:</label>
-                      <div className="flex gap-2">
-                        <select
-                          value={selectedQuality}
-                          onChange={(e) => {
-                            setSelectedQuality(e.target.value);
-                            // Update player sources when quality changes
-                            if (e.target.value === 'auto') {
-                              setSelectedOutputUrl(outputs.llhls || outputs.hls || '');
-                            } else {
-                              const profile = outputs.profiles.find((p: any) => p.name === e.target.value);
-                              if (profile) {
-                                setSelectedOutputUrl(profile.llhls || profile.hls || '');
+                    {/* DVR Controls */}
+                    {dvrStatus?.enabled && dvrStatus?.available && playerInstance && (
+                      <DVRControls
+                        playerInstance={playerInstance}
+                        dvrStatus={dvrStatus}
+                        currentTime={currentTime}
+                        duration={duration || dvrStatus.window || 0}
+                        isPlaying={isPlaying}
+                        onPlayPause={() => {
+                          try {
+                            if (playerInstance) {
+                              if (isPlaying) {
+                                if (typeof playerInstance.pause === 'function') {
+                                  playerInstance.pause();
+                                }
+                              } else {
+                                if (typeof playerInstance.play === 'function') {
+                                  playerInstance.play();
+                                }
                               }
                             }
-                          }}
-                          className="flex-1 px-3 py-2 border rounded-md text-sm"
-                        >
-                          <option value="auto">Auto (Adaptive)</option>
-                          {outputs.profiles.map((profile: any) => (
-                            <option key={profile.name} value={profile.name}>
-                              {profile.name}
-                            </option>
-                          ))}
-                        </select>
-                        <span className="text-xs text-muted-foreground flex items-center px-2">
-                          <Settings className="w-4 h-4 mr-1" />
-                          ABR Enabled
-                        </span>
+                          } catch (e) {
+                            console.warn('Error toggling play/pause:', e);
+                            toast.error('Failed to control playback');
+                          }
+                        }}
+                        onSeek={(time) => {
+                          try {
+                            if (playerInstance && typeof playerInstance.seek === 'function') {
+                              playerInstance.seek(time);
+                            } else if (playerInstance && typeof playerInstance.setCurrentTime === 'function') {
+                              playerInstance.setCurrentTime(time);
+                            }
+                          } catch (e) {
+                            console.warn('Error seeking:', e);
+                            toast.error('Failed to seek');
+                          }
+                        }}
+                      />
+                    )}
+
+                    {/* Quality Selection */}
+                    {outputs?.profiles && outputs.profiles.length > 0 && (
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Quality Selection:</label>
+                        <div className="flex gap-2">
+                          <select
+                            value={selectedQuality}
+                            onChange={(e) => {
+                              setSelectedQuality(e.target.value);
+                              // Update player sources when quality changes
+                              if (e.target.value === 'auto') {
+                                setSelectedOutputUrl(outputs.llhls || outputs.hls || '');
+                              } else {
+                                const profile = outputs.profiles.find((p: any) => p.name === e.target.value);
+                                if (profile) {
+                                  setSelectedOutputUrl(profile.llhls || profile.hls || '');
+                                }
+                              }
+                            }}
+                            className="flex-1 px-3 py-2 border rounded-md text-sm"
+                          >
+                            <option value="auto">Auto (Adaptive)</option>
+                            {outputs.profiles.map((profile: any) => (
+                              <option key={profile.name} value={profile.name}>
+                                {profile.name}
+                              </option>
+                            ))}
+                          </select>
+                          <span className="text-xs text-muted-foreground flex items-center px-2">
+                            <Settings className="w-4 h-4 mr-1" />
+                            ABR Enabled
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  )}
-                  
-                  {/* Output URL Selector */}
-                  {outputs && (
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Playback URL:</label>
-                      <div className="flex gap-2">
-                        <select
-                          value={selectedOutputUrl}
-                          onChange={(e) => {
-                            setSelectedOutputUrl(e.target.value);
-                            setPlayerError('');
-                          }}
-                          className="flex-1 px-3 py-2 border rounded-md text-sm"
-                        >
-                          {outputs.llhls && (
-                            <option value={outputs.llhls}>LLHLS (Low Latency HLS)</option>
-                          )}
-                          {outputs.hls && (
-                            <option value={outputs.hls}>HLS (Standard)</option>
-                          )}
-                          {outputs.dash && (
-                            <option value={outputs.dash}>DASH (MPD)</option>
-                          )}
-                          {outputs.webrtc && (
-                            <option value={outputs.webrtc}>WebRTC (WebSocket)</option>
-                          )}
-                        </select>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => copyToClipboard(selectedOutputUrl, 'Playback URL')}
-                        >
-                          <Copy className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => window.open(selectedOutputUrl, '_blank')}
-                        >
-                          <ExternalLink className="w-4 h-4" />
-                        </Button>
+                    )}
+                    
+                    {/* Output URL Selector */}
+                    {outputs && (
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Playback URL:</label>
+                        <div className="flex gap-2">
+                          <select
+                            value={selectedOutputUrl}
+                            onChange={(e) => {
+                              setSelectedOutputUrl(e.target.value);
+                            }}
+                            className="flex-1 px-3 py-2 border rounded-md text-sm"
+                          >
+                            {outputs.llhls && (
+                              <option value={outputs.llhls}>LLHLS (Low Latency HLS)</option>
+                            )}
+                            {outputs.hls && (
+                              <option value={outputs.hls}>HLS (Standard)</option>
+                            )}
+                            {outputs.dash && (
+                              <option value={outputs.dash}>DASH (MPD)</option>
+                            )}
+                            {outputs.webrtc && (
+                              <option value={outputs.webrtc}>WebRTC (WebSocket)</option>
+                            )}
+                          </select>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => copyToClipboard(selectedOutputUrl, 'Playback URL')}
+                          >
+                            <Copy className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => window.open(selectedOutputUrl, '_blank')}
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="bg-black rounded-lg aspect-video flex items-center justify-center">
+                    <div className="text-white text-center p-8">
+                      <Video className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+                      <p className="text-lg font-medium mb-2">No Output URLs Available</p>
+                      <p className="text-sm text-gray-400 mb-4">
+                        Output URLs are being generated. Please wait or check the output URLs section below.
+                      </p>
+                      {stream && (
+                        <div className="text-xs text-gray-500 mt-4">
+                          Stream: {stream.name} | State: {stream.state || 'unknown'}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
             {/* Stream Information */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -366,14 +448,14 @@ export function StreamDetailModal({
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Bitrate:</span>
                         <span>
-                          {latestMetrics.bitrate
+                          {latestMetrics.bitrate && typeof latestMetrics.bitrate === 'number'
                             ? `${(latestMetrics.bitrate / 1000).toFixed(0)} kbps`
                             : '-'}
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Frame Rate:</span>
-                        <span>{latestMetrics.fps ? `${latestMetrics.fps.toFixed(1)} fps` : '-'}</span>
+                        <span>{latestMetrics.fps != null && typeof latestMetrics.fps === 'number' ? `${latestMetrics.fps.toFixed(1)} fps` : '-'}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Resolution:</span>
@@ -401,7 +483,7 @@ export function StreamDetailModal({
                           <p className="text-xs text-muted-foreground mb-1">Video:</p>
                           {streamTracks.video.map((track: any, idx: number) => (
                             <div key={idx} className="text-xs pl-2">
-                              {track.codec} - {track.bitrate ? `${(track.bitrate / 1000).toFixed(0)}kbps` : ''} - {track.resolution || ''} - {track.framerate ? `${track.framerate}fps` : ''}
+                              {track.codec} - {track.bitrate && typeof track.bitrate === 'number' ? `${(track.bitrate / 1000).toFixed(0)}kbps` : ''} - {track.resolution || ''} - {track.framerate ? `${track.framerate}fps` : ''}
                             </div>
                           ))}
                         </div>
@@ -411,7 +493,7 @@ export function StreamDetailModal({
                           <p className="text-xs text-muted-foreground mb-1">Audio:</p>
                           {streamTracks.audio.map((track: any, idx: number) => (
                             <div key={idx} className="text-xs pl-2">
-                              {track.codec} - {track.bitrate ? `${(track.bitrate / 1000).toFixed(0)}kbps` : ''} - {track.samplerate || ''}
+                              {track.codec} - {track.bitrate && typeof track.bitrate === 'number' ? `${(track.bitrate / 1000).toFixed(0)}kbps` : ''} - {track.samplerate || ''}
                             </div>
                           ))}
                         </div>
@@ -423,7 +505,7 @@ export function StreamDetailModal({
                   {streamHealth?.quality && (
                     <div className="mt-4 pt-4 border-t space-y-2">
                       <p className="text-xs font-semibold mb-2">Network Quality:</p>
-                      {streamHealth.quality.packetLoss !== null && (
+                      {streamHealth?.quality?.packetLoss != null && typeof streamHealth.quality.packetLoss === 'number' && (
                         <div className="flex justify-between">
                           <span className="text-xs text-muted-foreground">Packet Loss:</span>
                           <span className={`text-xs ${streamHealth.quality.packetLoss > 5 ? 'text-red-600' : streamHealth.quality.packetLoss > 1 ? 'text-yellow-600' : 'text-green-600'}`}>
@@ -431,7 +513,7 @@ export function StreamDetailModal({
                           </span>
                         </div>
                       )}
-                      {streamHealth.quality.latency !== null && (
+                      {streamHealth?.quality?.latency != null && typeof streamHealth.quality.latency === 'number' && (
                         <div className="flex justify-between">
                           <span className="text-xs text-muted-foreground">Latency (RTT):</span>
                           <span className="text-xs">{streamHealth.quality.latency}ms</span>
@@ -677,71 +759,60 @@ export function StreamDetailModal({
               </Card>
             )}
 
-            {/* SCTE-35 Markers Timeline */}
-            {streamChannel && scte35Markers.length > 0 && (
+            {/* SCTE-35 Timeline Visualization */}
+            {streamChannel && (
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base flex items-center gap-2">
                     <Clock className="w-4 h-4" />
-                    SCTE-35 Markers
+                    SCTE-35 Timeline
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-3">
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Available markers for this stream. Click to insert into stream.
-                    </p>
-                    <div className="space-y-2">
-                      {scte35Markers.map((marker: any) => (
-                        <div
-                          key={marker.id}
-                          className="p-3 border rounded-lg hover:bg-accent/50 transition-colors"
-                        >
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="font-medium text-sm">{marker.name}</span>
-                                <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-xs">
-                                  {marker.type}
-                                </span>
-                                {marker.cueOut && (
-                                  <span className="px-2 py-0.5 bg-orange-100 text-orange-800 rounded text-xs">
-                                    Cue Out
-                                  </span>
-                                )}
-                                {marker.cueIn && (
-                                  <span className="px-2 py-0.5 bg-green-100 text-green-800 rounded text-xs">
-                                    Cue In
-                                  </span>
-                                )}
-                              </div>
-                              {marker.duration && (
-                                <p className="text-xs text-muted-foreground">
-                                  Duration: {marker.duration}s
-                                </p>
-                              )}
-                            </div>
-                            {streamChannel && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={async () => {
-                                  try {
-                                    await streamsApi.insertScte35(streamChannel.id, marker.id);
-                                    toast.success('SCTE-35 marker inserted into stream');
-                                  } catch (error: any) {
-                                    toast.error(error.response?.data?.error?.message || 'Failed to insert marker');
-                                  }
-                                }}
-                              >
-                                Insert
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                  <Scte35Timeline
+                    markers={scte35Markers}
+                    currentTime={currentTime}
+                    duration={duration || dvrStatus?.window || 3600}
+                    streamName={streamName || undefined}
+                    onMarkerClick={(marker) => {
+                      // Seek to marker timestamp if available
+                      if (marker.timestamp !== undefined && playerInstance) {
+                        try {
+                          if (typeof playerInstance.seek === 'function') {
+                            playerInstance.seek(marker.timestamp);
+                          } else if (typeof playerInstance.setCurrentTime === 'function') {
+                            playerInstance.setCurrentTime(marker.timestamp);
+                          }
+                          toast.success(`Seeking to marker: ${marker.name}`);
+                        } catch (e) {
+                          console.warn('Error seeking to marker:', e);
+                          toast.error('Failed to seek to marker');
+                        }
+                      }
+                    }}
+                    onMarkerInsert={async (markerId) => {
+                      if (!streamChannel?.id) {
+                        toast.error('Channel not available');
+                        return;
+                      }
+                      try {
+                        await streamsApi.insertScte35(streamChannel.id, markerId);
+                        toast.success('Marker inserted into stream');
+                      } catch (error: any) {
+                        toast.error(error.response?.data?.error?.message || 'Failed to insert marker');
+                      }
+                    }}
+                    onMarkerDelete={async (markerId) => {
+                      try {
+                        await scte35Api.delete(markerId);
+                        toast.success('Marker deleted');
+                        // Refresh markers list
+                        queryClient.invalidateQueries({ queryKey: ['scte35-markers'] });
+                      } catch (error: any) {
+                        toast.error(error.response?.data?.error?.message || 'Failed to delete marker');
+                      }
+                    }}
+                  />
                 </CardContent>
               </Card>
             )}
@@ -910,7 +981,17 @@ function OutputUrlRow({
             alt="Stream thumbnail"
             className="max-w-xs border rounded"
             onError={(e) => {
-              (e.target as HTMLImageElement).style.display = 'none';
+              // Hide image on error (404, etc.) and prevent console errors
+              const img = e.target as HTMLImageElement;
+              img.style.display = 'none';
+              // Prevent error from bubbling up to console
+              e.preventDefault?.();
+              e.stopPropagation?.();
+            }}
+            onLoad={(e) => {
+              // Show image if it loads successfully
+              const img = e.target as HTMLImageElement;
+              img.style.display = '';
             }}
           />
         </div>

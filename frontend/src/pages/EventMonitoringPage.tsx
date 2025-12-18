@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { omeApi } from '../lib/api';
-import { Activity, Filter, RefreshCw, AlertCircle, CheckCircle, XCircle, Info, Clock } from 'lucide-react';
+import { Activity, Filter, RefreshCw, CheckCircle, XCircle, Info, Clock } from 'lucide-react';
 import { formatDate } from '../lib/utils';
 
 export function EventMonitoringPage() {
@@ -19,7 +19,7 @@ export function EventMonitoringPage() {
       const response = await omeApi.getEvents({ vhostName, limit, offset: 0 });
       return response.data;
     },
-    refetchInterval: autoRefresh ? 5000 : false, // Auto-refresh every 5 seconds if enabled
+    refetchInterval: autoRefresh ? 15000 : false, // Auto-refresh every 15 seconds if enabled (reduced to avoid rate limits)
   });
 
   const events = data?.events || [];
@@ -30,7 +30,7 @@ export function EventMonitoringPage() {
     : events.filter((event: any) => event.type === eventTypeFilter || event.eventType === eventTypeFilter);
 
   // Get unique event types for filter
-  const eventTypes = Array.from(new Set(events.map((e: any) => e.type || e.eventType || 'unknown')));
+  const eventTypes: string[] = Array.from(new Set(events.map((e: any) => String(e.type || e.eventType || 'unknown'))));
 
   const getEventIcon = (eventType: string) => {
     const type = (eventType || '').toLowerCase();
@@ -106,8 +106,8 @@ export function EventMonitoringPage() {
                 className="w-full px-3 py-2 border rounded-md text-sm"
               >
                 <option value="all">All Events</option>
-                {eventTypes.map((type) => (
-                  <option key={type} value={type}>
+                {eventTypes.map((type: string, index: number) => (
+                  <option key={`${type}-${index}`} value={type}>
                     {type}
                   </option>
                 ))}

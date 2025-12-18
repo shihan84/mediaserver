@@ -13,18 +13,54 @@ const prisma = new PrismaClient();
 // Get all streams from OME
 router.get('/', authenticate, async (req: AuthRequest, res: Response, next) => {
   try {
+    logger.info('Fetching streams from OME...');
+    
+    // Get streams directly from OME - this should work regardless of channels
     const streams = await omeClient.getStreams();
     
-    // Sync with database channels
+    logger.info('Streams fetched from OME', { 
+      count: streams?.length || 0,
+      streamNames: streams?.map((s: any) => `${s.name}@${s.appName || 'app'}`) || []
+    });
+    
+    // Sync with database channels (optional - streams can exist without channels)
     const dbChannels = await prisma.channel.findMany({
       where: { isActive: true }
     });
 
+    logger.info('Matching streams with channels', {
+      streamsCount: streams?.length || 0,
+      channelsCount: dbChannels.length
+    });
+
+    // Match streams with channels by streamKey and appName
+    const streamsWithChannelInfo = (streams || []).map((stream: any) => {
+      // Find matching channel by streamKey and appName
+      const channel = dbChannels.find((ch: any) => 
+        ch.streamKey === stream.name && (ch.appName || 'app') === (stream.appName || 'app')
+      );
+      
+      return {
+        ...stream,
+        matchedChannel: channel || null
+      };
+    });
+
+    logger.info('Sending streams response', {
+      streamsCount: streamsWithChannelInfo.length,
+      channelsCount: dbChannels.length
+    });
+
     res.json({
-      streams: streams || [],
+      streams: streamsWithChannelInfo || [],
       channels: dbChannels
     });
-  } catch (error) {
+  } catch (error: any) {
+    logger.error('Error fetching streams', {
+      error: error.message,
+      stack: error.stack,
+      endpoint: '/streams'
+    });
     next(error);
   }
 });
@@ -33,9 +69,8 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response, next) => {
 router.get('/:streamName', authenticate, async (req: AuthRequest, res: Response, next) => {
   try {
     const { streamName } = req.params;
-    const stream = await omeClient.getStream(streamName);
     
-    // Find channel by streamKey to get appName
+    // Find channel by streamKey to get appName FIRST (before fetching stream)
     let channelAppName: string | undefined;
     let channel = null;
     try {
@@ -45,6 +80,38 @@ router.get('/:streamName', authenticate, async (req: AuthRequest, res: Response,
       channelAppName = channel?.appName;
     } catch (err) {
       logger.warn('Could not find channel for stream', { streamName });
+    }
+
+    // Try to get stream with the correct appName
+    let stream = null;
+    let foundAppName = channelAppName || 'app';
+    
+    // Try multiple apps if stream not found
+    const appsToTry = channelAppName ? [channelAppName, 'app', 'live'] : ['app', 'live'];
+    
+    for (const appName of appsToTry) {
+      try {
+        stream = await omeClient.getStream(streamName, 'default', appName);
+        if (stream) {
+          foundAppName = appName;
+          logger.info('Stream found', { streamName, appName });
+          break;
+        }
+      } catch (err: any) {
+        // Continue to next app
+        logger.debug(`Stream not found in app '${appName}'`, { streamName, error: err.message });
+      }
+    }
+    
+    // If stream still not found, return error response
+    if (!stream) {
+      logger.warn('Stream not found in any application', { streamName, appsTried: appsToTry });
+      return res.status(404).json({
+        error: 'Stream not found',
+        message: `Stream '${streamName}' not found in any application`,
+        stream: null,
+        channel
+      });
     }
 
     // Get enhanced metrics from OME
@@ -62,11 +129,11 @@ router.get('/:streamName', authenticate, async (req: AuthRequest, res: Response,
     }
 
     try {
-      streamStats = await omeClient.getStreamStats(streamName, 'default', channelAppName || 'app');
-      streamTracks = await omeClient.getStreamTracks(streamName, 'default', channelAppName || 'app');
-      streamStatistics = await omeClient.getStreamStatistics(streamName, 'default', channelAppName || 'app');
-      streamHealth = await omeClient.getStreamHealth(streamName, 'default', channelAppName || 'app');
-      viewerCount = await omeClient.getViewerCount(streamName, 'default', channelAppName || 'app');
+      streamStats = await omeClient.getStreamStats(streamName, 'default', foundAppName);
+      streamTracks = await omeClient.getStreamTracks(streamName, 'default', foundAppName);
+      streamStatistics = await omeClient.getStreamStatistics(streamName, 'default', foundAppName);
+      streamHealth = await omeClient.getStreamHealth(streamName, 'default', foundAppName);
+      viewerCount = await omeClient.getViewerCount(streamName, 'default', foundAppName);
     } catch (err) {
       logger.warn('Could not fetch enhanced metrics', { streamName, error: err });
     }
@@ -86,34 +153,53 @@ router.get('/:streamName', authenticate, async (req: AuthRequest, res: Response,
     // Get recording status if available
     let recordingStatus = null;
     try {
-      recordingStatus = await omeClient.getRecordingStatus(streamName);
-    } catch (err) {
-      // Recording might not be active
+      recordingStatus = await omeClient.getRecordingStatus(streamName, 'default', foundAppName);
+    } catch (err: any) {
+      logger.debug('Recording status not available', { streamName, error: err.message });
     }
 
     // Get push publishing status if available
     let pushPublishingStatus = null;
     try {
-      pushPublishingStatus = await omeClient.getPushPublishingStatus(streamName);
-    } catch (err) {
-      // Push publishing might not be active
+      pushPublishingStatus = await omeClient.getPushPublishingStatus(streamName, 'default', foundAppName);
+    } catch (err: any) {
+      logger.debug('Push publishing status not available', { streamName, error: err.message });
     }
 
-    // Generate output URLs
+    // Generate output URLs - ensure we use the found appName
     let outputUrls = null;
     let outputProfiles: string[] = [];
     try {
-      // Try to get output profiles from OME
-      const profiles = await omeClient.getOutputProfiles(channelAppName || 'app');
-      outputProfiles = profiles?.outputProfiles?.map((p: any) => p.name) || [];
-      outputUrls = outputUrlService.generateOutputUrls(streamName, outputProfiles, channelAppName);
-    } catch (err) {
+      // Try to get output profiles from OME (vhost, appName order)
+      const profiles = await omeClient.getOutputProfiles('default', foundAppName);
+      if (profiles && profiles.outputProfiles) {
+        outputProfiles = Array.isArray(profiles.outputProfiles)
+          ? profiles.outputProfiles.map((p: any) => p.name || p)
+          : [];
+      }
+      outputUrls = outputUrlService.generateOutputUrls(streamName, outputProfiles.length > 0 ? outputProfiles : undefined, foundAppName);
+      logger.debug('Output URLs generated', { streamName, appName: foundAppName, profilesCount: outputProfiles.length });
+    } catch (err: any) {
+      logger.debug('Could not fetch output profiles, using defaults', { streamName, appName: foundAppName, error: err.message });
       // If profiles not available, generate URLs without profiles
-      outputUrls = outputUrlService.generateOutputUrls(streamName, undefined, channelAppName);
+      outputUrls = outputUrlService.generateOutputUrls(streamName, undefined, foundAppName);
     }
 
+    // Add appName to stream object for frontend
+    const streamWithApp = {
+      ...stream,
+      appName: foundAppName
+    };
+
+    logger.info('Stream details fetched successfully', {
+      streamName,
+      appName: foundAppName,
+      hasOutputs: !!outputUrls,
+      hasHealth: !!streamHealth
+    });
+
     res.json({
-      stream,
+      stream: streamWithApp,
       channel,
       omeMetrics,
       streamStats,

@@ -202,7 +202,7 @@ function RecordingRow({ stream, onStop, canModify }: { stream: any; onStop: (str
       const response = await recordingsApi.getStatus(stream.name);
       return response.data;
     },
-    refetchInterval: 5000,
+    refetchInterval: 15000, // Reduced to avoid rate limits
   });
 
   const recording = statusData?.recording;

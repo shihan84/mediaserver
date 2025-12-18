@@ -55,47 +55,136 @@ class OMEClient {
 
   async getStreams() {
     try {
-      const result = await this.request('GET', '/v1/vhosts/default/apps/app/streams');
-      // OME returns streams in response.response array format: {message: "OK", response: ["stream1", "stream2"], statusCode: 200}
-      let streamNames: string[] = [];
-      
-      if (result && result.response && Array.isArray(result.response)) {
-        streamNames = result.response;
-      } else if (Array.isArray(result)) {
-        streamNames = result;
+      // Get all applications first
+      let applications: string[] = [];
+      try {
+        const appsResult = await this.request('GET', '/v1/vhosts/default/apps');
+        if (appsResult && appsResult.response && Array.isArray(appsResult.response)) {
+          applications = appsResult.response.map((app: any) => app.name || app);
+        } else if (Array.isArray(appsResult)) {
+          applications = appsResult.map((app: any) => app.name || app);
+        } else {
+          // Fallback: check common application names
+          applications = ['app', 'live'];
+        }
+      } catch (err: any) {
+        logger.warn('Could not fetch applications list, using defaults', { error: err.message });
+        // Fallback: check common application names (app and live)
+        applications = ['app', 'live'];
       }
+
+      // Ensure we always check at least app and live
+      if (!applications.includes('app')) applications.push('app');
+      if (!applications.includes('live')) applications.push('live');
+
+      logger.info('Checking streams in applications', { applications });
+
+      // Fetch streams from all applications
+      const allStreams: any[] = [];
       
-      logger.info('Fetched stream names from OME', { streamNames, count: streamNames.length });
-      
-      // Fetch full details for each stream
-      if (streamNames.length > 0) {
-        const streamPromises = streamNames.map(async (streamName: string) => {
-          try {
-            const streamDetail = await this.getStream(streamName);
-            logger.debug('Fetched stream detail', { streamName, hasResponse: !!streamDetail });
-            return streamDetail;
-          } catch (err: any) {
-            logger.warn('Failed to fetch stream details', { streamName, error: err.message });
-            // Return minimal stream object so it still shows up in the list
-            return { name: streamName, state: 'unknown', input: { sourceType: 'Unknown' } };
+      for (const appName of applications) {
+        try {
+          const result = await this.request('GET', `/v1/vhosts/default/apps/${appName}/streams`);
+          let streamNames: string[] = [];
+          
+          // Handle different response formats
+          if (result && result.response) {
+            if (Array.isArray(result.response)) {
+              streamNames = result.response;
+            } else if (typeof result.response === 'object' && result.response.length !== undefined) {
+              streamNames = result.response;
+            }
+          } else if (Array.isArray(result)) {
+            streamNames = result;
           }
-        });
-        const streams = await Promise.all(streamPromises);
-        logger.info('Fetched stream details', { count: streams.length, streams: streams.map((s: any) => s?.name || 'unknown') });
-        // Filter out any null/undefined streams
-        return streams.filter((s: any) => s && s.name);
+          
+          if (streamNames.length > 0) {
+            logger.info(`Found ${streamNames.length} streams in app '${appName}'`, { 
+              streamNames,
+              appName 
+            });
+          } else {
+            logger.debug(`No streams found in app '${appName}'`);
+          }
+          
+          // Fetch full details for each stream and add appName
+          if (streamNames.length > 0) {
+            const streamPromises = streamNames.map(async (streamName: string) => {
+              try {
+                const streamDetail = await this.getStream(streamName, 'default', appName);
+                
+                // Ensure we have a valid stream object
+                if (streamDetail && streamDetail.name) {
+                  // Add appName and ensure state is set
+                  const streamWithApp = {
+                    ...streamDetail,
+                    appName,
+                    state: streamDetail.state || 'started', // Default to started if not specified
+                  };
+                  
+                  logger.debug('Stream detail fetched', {
+                    streamName,
+                    appName,
+                    hasInput: !!streamDetail.input,
+                    sourceType: streamDetail.input?.sourceType
+                  });
+                  
+                  return streamWithApp;
+                }
+                
+                // Fallback: return minimal stream object
+                logger.warn('Stream detail incomplete', { streamName, appName, streamDetail });
+                return { 
+                  name: streamName, 
+                  state: 'unknown', 
+                  input: { sourceType: 'Unknown' }, 
+                  appName 
+                };
+              } catch (err: any) {
+                logger.warn('Failed to fetch stream details', { 
+                  streamName, 
+                  appName, 
+                  error: err.message,
+                  status: err.response?.status
+                });
+                // Return minimal stream object with appName so it still appears
+                return { 
+                  name: streamName, 
+                  state: 'unknown', 
+                  input: { sourceType: 'Unknown' }, 
+                  appName 
+                };
+              }
+            });
+            const streams = await Promise.all(streamPromises);
+            const validStreams = streams.filter((s: any) => s && s.name);
+            if (validStreams.length > 0) {
+              logger.info(`Adding ${validStreams.length} valid streams from app '${appName}'`);
+              allStreams.push(...validStreams);
+            }
+          }
+        } catch (err: any) {
+          logger.debug(`No streams or error in app '${appName}'`, { 
+            error: err.message,
+            status: err.response?.status 
+          });
+          // Continue to next application
+        }
       }
       
-      logger.info('No streams found in OME');
-      return [];
+      logger.info('Fetched all streams from all applications', { 
+        count: allStreams.length, 
+        streams: allStreams.map((s: any) => `${s.name}@${s.appName || 'app'}`) 
+      });
+      return allStreams;
     } catch (error: any) {
       logger.error('Error fetching streams', { error: error.message, stack: error.stack });
       throw error;
     }
   }
 
-  async getStream(streamName: string) {
-    const result = await this.request('GET', `/v1/vhosts/default/apps/app/streams/${streamName}`);
+  async getStream(streamName: string, vhostName: string = 'default', appName: string = 'app') {
+    const result = await this.request('GET', `/v1/vhosts/${vhostName}/apps/${appName}/streams/${streamName}`);
     // OME returns stream details in response.response
     return result.response || result;
   }
@@ -132,25 +221,25 @@ class OMEClient {
     return this.request('DELETE', `/v1/vhosts/default/apps/app/streams/${streamName}/record`);
   }
 
-  async getRecordingStatus(streamName: string) {
-    return this.request('GET', `/v1/vhosts/default/apps/app/streams/${streamName}/record`);
+  async getRecordingStatus(streamName: string, vhostName: string = 'default', appName: string = 'app') {
+    return this.request('GET', `/v1/vhosts/${vhostName}/apps/${appName}/streams/${streamName}/record`);
   }
 
   // Push Publishing endpoints (https://docs.ovenmediaengine.com/push-publishing)
-  async startPushPublishing(streamName: string, protocol: string, url: string, streamKey?: string) {
-    return this.request('POST', `/v1/vhosts/default/apps/app/streams/${streamName}/push`, {
+  async startPushPublishing(streamName: string, protocol: string, url: string, streamKey?: string, vhostName: string = 'default', appName: string = 'app') {
+    return this.request('POST', `/v1/vhosts/${vhostName}/apps/${appName}/streams/${streamName}/push`, {
       protocol, // 'srt', 'rtmp', 'mpegts'
       url,
       streamKey
     });
   }
 
-  async stopPushPublishing(streamName: string, id: string) {
-    return this.request('DELETE', `/v1/vhosts/default/apps/app/streams/${streamName}/push/${id}`);
+  async stopPushPublishing(streamName: string, id: string, vhostName: string = 'default', appName: string = 'app') {
+    return this.request('DELETE', `/v1/vhosts/${vhostName}/apps/${appName}/streams/${streamName}/push/${id}`);
   }
 
-  async getPushPublishingStatus(streamName: string) {
-    return this.request('GET', `/v1/vhosts/default/apps/app/streams/${streamName}/push`);
+  async getPushPublishingStatus(streamName: string, vhostName: string = 'default', appName: string = 'app') {
+    return this.request('GET', `/v1/vhosts/${vhostName}/apps/${appName}/streams/${streamName}/push`);
   }
 
   // Scheduled Channels endpoints (https://docs.ovenmediaengine.com/rest-api/v1/virtualhost/application/scheduledchannel-api)
@@ -158,21 +247,58 @@ class OMEClient {
     return this.request('GET', '/v1/vhosts/default/apps/app/scheduledChannels');
   }
 
-  async createScheduledChannel(name: string, schedule: any[]) {
-    return this.request('POST', '/v1/vhosts/default/apps/app/scheduledChannels', {
-      name,
-      schedule
-    });
+  async createScheduledChannel(name: string, data: {
+    stream?: {
+      name?: string;
+      bypassTranscoder?: boolean;
+      videoTrack?: boolean;
+      audioTrack?: boolean;
+    };
+    fallbackProgram?: {
+      items: Array<{
+        url: string;
+        start?: number;
+        duration?: number;
+      }>;
+    };
+    programs?: Array<{
+      name?: string;
+      scheduled: string; // ISO8601 format
+      repeat?: boolean;
+      items: Array<{
+        url: string; // file:// or stream://
+        start?: number; // milliseconds (for file://)
+        duration?: number; // milliseconds
+      }>;
+    }>;
+  }) {
+    return this.request('POST', '/v1/vhosts/default/apps/app/scheduledChannels', data);
   }
 
   async getScheduledChannel(channelName: string) {
     return this.request('GET', `/v1/vhosts/default/apps/app/scheduledChannels/${channelName}`);
   }
 
-  async updateScheduledChannel(channelName: string, schedule: any[]) {
-    return this.request('PUT', `/v1/vhosts/default/apps/app/scheduledChannels/${channelName}`, {
-      schedule
-    });
+  async updateScheduledChannel(channelName: string, data: {
+    fallbackProgram?: {
+      items: Array<{
+        url: string;
+        start?: number;
+        duration?: number;
+      }>;
+    };
+    programs?: Array<{
+      name?: string;
+      scheduled: string; // ISO8601 format
+      repeat?: boolean;
+      items: Array<{
+        url: string; // file:// or stream://
+        start?: number; // milliseconds (for file://)
+        duration?: number; // milliseconds
+      }>;
+    }>;
+  }) {
+    return this.request('PUT', `/v1/vhosts/default/apps/app/scheduledChannels/${channelName}`, data);
   }
 
   async deleteScheduledChannel(channelName: string) {
@@ -213,6 +339,26 @@ class OMEClient {
   // Output profiles (transcoding) (https://docs.ovenmediaengine.com/rest-api)
   async getOutputProfiles(vhostName: string = 'default', appName: string = 'app') {
     const result = await this.request('GET', `/v1/vhosts/${vhostName}/apps/${appName}/outputProfiles`);
+    return result.response || result;
+  }
+
+  async getOutputProfile(vhostName: string = 'default', appName: string = 'app', profileName: string) {
+    const result = await this.request('GET', `/v1/vhosts/${vhostName}/apps/${appName}/outputProfiles/${profileName}`);
+    return result.response || result;
+  }
+
+  async createOutputProfile(vhostName: string = 'default', appName: string = 'app', profile: any) {
+    const result = await this.request('POST', `/v1/vhosts/${vhostName}/apps/${appName}/outputProfiles`, profile);
+    return result.response || result;
+  }
+
+  async updateOutputProfile(vhostName: string = 'default', appName: string = 'app', profileName: string, profile: any) {
+    const result = await this.request('PUT', `/v1/vhosts/${vhostName}/apps/${appName}/outputProfiles/${profileName}`, profile);
+    return result.response || result;
+  }
+
+  async deleteOutputProfile(vhostName: string = 'default', appName: string = 'app', profileName: string) {
+    const result = await this.request('DELETE', `/v1/vhosts/${vhostName}/apps/${appName}/outputProfiles/${profileName}`);
     return result.response || result;
   }
 
@@ -390,17 +536,64 @@ class OMEClient {
     streamName: string,
     expiresIn: number, // seconds until expiration
     vhostName: string = 'default',
-    appName: string = 'app'
+    appName: string = 'app',
+    options?: {
+      clientIp?: string;
+      allowIp?: string[];
+      denyIp?: string[];
+      signature?: string;
+    }
   ) {
     try {
       // OME signed policy creation endpoint
-      const result = await this.request('POST', `/v1/vhosts/${vhostName}/apps/${appName}/streams/${streamName}/signed-policy`, {
+      const policyData: any = {
         expiresIn,
         timestamp: Math.floor(Date.now() / 1000)
-      });
+      };
+
+      if (options?.clientIp) policyData.clientIp = options.clientIp;
+      if (options?.allowIp) policyData.allowIp = options.allowIp;
+      if (options?.denyIp) policyData.denyIp = options.denyIp;
+      if (options?.signature) policyData.signature = options.signature;
+
+      const result = await this.request('POST', `/v1/vhosts/${vhostName}/apps/${appName}/streams/${streamName}/signed-policy`, policyData);
       return result.response || result;
     } catch (error: any) {
       logger.warn('Could not create signed policy', { streamName, error: error.message });
+      throw error;
+    }
+  }
+
+  /**
+   * Validate a signed policy token
+   */
+  async validateSignedPolicy(
+    policyToken: string,
+    vhostName: string = 'default'
+  ) {
+    try {
+      const result = await this.request('POST', `/v1/vhosts/${vhostName}/validate-policy`, {
+        token: policyToken
+      });
+      return result.response || result;
+    } catch (error: any) {
+      logger.warn('Could not validate signed policy', { error: error.message });
+      throw error;
+    }
+  }
+
+  /**
+   * Revoke a signed policy
+   */
+  async revokeSignedPolicy(
+    policyToken: string,
+    vhostName: string = 'default'
+  ) {
+    try {
+      const result = await this.request('DELETE', `/v1/vhosts/${vhostName}/policies/${policyToken}`);
+      return result.response || result;
+    } catch (error: any) {
+      logger.warn('Could not revoke signed policy', { error: error.message });
       throw error;
     }
   }
@@ -416,6 +609,146 @@ class OMEClient {
     } catch (error: any) {
       logger.warn('Could not fetch admission webhooks', { vhostName, error: error.message });
       return null;
+    }
+  }
+
+  async createAdmissionWebhook(vhostName: string = 'default', webhook: any) {
+    try {
+      // Get current vhost config
+      const vhost = await this.getVirtualHost(vhostName);
+      const currentWebhooks = vhost?.admissionWebhooks || [];
+      
+      // Add new webhook
+      const updatedWebhooks = [...currentWebhooks, webhook];
+      
+      // Update vhost with new webhooks
+      const result = await this.request('PUT', `/v1/vhosts/${vhostName}`, {
+        ...vhost,
+        admissionWebhooks: updatedWebhooks
+      });
+      return result.response || result;
+    } catch (error: any) {
+      logger.warn('Could not create admission webhook', { vhostName, error: error.message });
+      throw error;
+    }
+  }
+
+  async updateAdmissionWebhook(vhostName: string = 'default', webhookId: string, webhook: any) {
+    try {
+      const vhost = await this.getVirtualHost(vhostName);
+      const currentWebhooks = vhost?.admissionWebhooks || [];
+      
+      // Update webhook by ID or index
+      const updatedWebhooks = currentWebhooks.map((wh: any, index: number) => {
+        if (wh.id === webhookId || index === parseInt(webhookId)) {
+          return { ...wh, ...webhook };
+        }
+        return wh;
+      });
+      
+      const result = await this.request('PUT', `/v1/vhosts/${vhostName}`, {
+        ...vhost,
+        admissionWebhooks: updatedWebhooks
+      });
+      return result.response || result;
+    } catch (error: any) {
+      logger.warn('Could not update admission webhook', { vhostName, webhookId, error: error.message });
+      throw error;
+    }
+  }
+
+  async deleteAdmissionWebhook(vhostName: string = 'default', webhookId: string) {
+    try {
+      const vhost = await this.getVirtualHost(vhostName);
+      const currentWebhooks = vhost?.admissionWebhooks || [];
+      
+      // Remove webhook by ID or index
+      const updatedWebhooks = currentWebhooks.filter((wh: any, index: number) => 
+        wh.id !== webhookId && index !== parseInt(webhookId)
+      );
+      
+      const result = await this.request('PUT', `/v1/vhosts/${vhostName}`, {
+        ...vhost,
+        admissionWebhooks: updatedWebhooks
+      });
+      return result.response || result;
+    } catch (error: any) {
+      logger.warn('Could not delete admission webhook', { vhostName, webhookId, error: error.message });
+      throw error;
+    }
+  }
+
+  // RTSP Provider Management (for RTSP pull streams)
+  async getRtspProviders(vhostName: string = 'default', appName: string = 'app') {
+    try {
+      const app = await this.getApplication(vhostName, appName);
+      return app?.rtspProviders || app?.providers?.rtsp || [];
+    } catch (error: any) {
+      logger.warn('Could not fetch RTSP providers', { vhostName, appName, error: error.message });
+      return [];
+    }
+  }
+
+  async createRtspProvider(vhostName: string = 'default', appName: string = 'app', provider: any) {
+    try {
+      // Get current app config
+      const app = await this.getApplication(vhostName, appName);
+      const currentProviders = app?.rtspProviders || app?.providers?.rtsp || [];
+      
+      // Add new provider
+      const updatedProviders = [...currentProviders, provider];
+      
+      // Update app with new providers
+      const result = await this.request('PUT', `/v1/vhosts/${vhostName}/apps/${appName}`, {
+        ...app,
+        rtspProviders: updatedProviders
+      });
+      return result.response || result;
+    } catch (error: any) {
+      logger.warn('Could not create RTSP provider', { vhostName, appName, error: error.message });
+      throw error;
+    }
+  }
+
+  async updateRtspProvider(vhostName: string = 'default', appName: string = 'app', providerName: string, provider: any) {
+    try {
+      const app = await this.getApplication(vhostName, appName);
+      const currentProviders = app?.rtspProviders || app?.providers?.rtsp || [];
+      
+      // Update provider by name
+      const updatedProviders = currentProviders.map((p: any) => 
+        (p.name === providerName || p.url === providerName) ? { ...p, ...provider } : p
+      );
+      
+      const result = await this.request('PUT', `/v1/vhosts/${vhostName}/apps/${appName}`, {
+        ...app,
+        rtspProviders: updatedProviders
+      });
+      return result.response || result;
+    } catch (error: any) {
+      logger.warn('Could not update RTSP provider', { vhostName, appName, providerName, error: error.message });
+      throw error;
+    }
+  }
+
+  async deleteRtspProvider(vhostName: string = 'default', appName: string = 'app', providerName: string) {
+    try {
+      const app = await this.getApplication(vhostName, appName);
+      const currentProviders = app?.rtspProviders || app?.providers?.rtsp || [];
+      
+      // Remove provider by name
+      const updatedProviders = currentProviders.filter((p: any) => 
+        p.name !== providerName && p.url !== providerName
+      );
+      
+      const result = await this.request('PUT', `/v1/vhosts/${vhostName}/apps/${appName}`, {
+        ...app,
+        rtspProviders: updatedProviders
+      });
+      return result.response || result;
+    } catch (error: any) {
+      logger.warn('Could not delete RTSP provider', { vhostName, appName, providerName, error: error.message });
+      throw error;
     }
   }
 }

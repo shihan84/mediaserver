@@ -1,732 +1,509 @@
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { streamsApi, channelsApi } from '../lib/api';
+import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { streamsApi } from '../lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { useAuthStore } from '../store/authStore';
+import { Copy, Eye, Activity, Plus, Info, Play, RefreshCw, AlertCircle } from 'lucide-react';
+import { StreamDetailModal } from '../components/streaming/StreamDetailModal';
+import { InlineStreamPlayer } from '../components/streaming/InlineStreamPlayer';
 import toast from 'react-hot-toast';
-import { Copy, ExternalLink, ChevronDown, ChevronUp, Eye } from 'lucide-react';
-import { StreamDetailModal } from '../components/StreamDetailModal';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '../components/ui/dialog';
 
-// Get OME host from environment or use default
+// Simple Badge component
+const Badge = ({ children, variant = 'default', className = '' }: { children: React.ReactNode; variant?: 'default' | 'secondary'; className?: string }) => {
+  const baseStyles = 'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold';
+  const variantStyles = variant === 'default' 
+    ? 'bg-primary text-primary-foreground' 
+    : 'bg-secondary text-secondary-foreground';
+  return <span className={`${baseStyles} ${variantStyles} ${className}`}>{children}</span>;
+};
+
+// Simple bitrate formatter
+const formatBitrate = (bps: number): string => {
+  if (bps === 0) return '0 bps';
+  const k = 1000;
+  const sizes = ['bps', 'Kbps', 'Mbps', 'Gbps'];
+  const i = Math.floor(Math.log(bps) / Math.log(k));
+  return Math.round(bps / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+};
+
 const OME_HOST = (import.meta.env.VITE_OME_HOST as string) || 'ome.imagetv.in';
 
 export function StreamsPage() {
-  const { user } = useAuthStore();
-  const queryClient = useQueryClient();
-  const [expandedStreams, setExpandedStreams] = useState<Set<string>>(new Set());
   const [selectedStream, setSelectedStream] = useState<{ streamName: string; channel?: any } | null>(null);
+  const [playingStream, setPlayingStream] = useState<{ streamName: string; channel?: any } | null>(null);
+  const [showCreateGuide, setShowCreateGuide] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<any>(null);
 
-  const { data, isLoading, error } = useQuery({
+  // Simple query - no complex select or memoization
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['streams'],
     queryFn: async () => {
       try {
         const response = await streamsApi.getAll();
-        return response.data;
+        const responseData = response.data;
+        
+        // Store debug info
+        setDebugInfo({
+          timestamp: new Date().toISOString(),
+          streamsCount: responseData?.streams?.length || 0,
+          channelsCount: responseData?.channels?.length || 0,
+          rawResponse: responseData
+        });
+        
+        return responseData;
       } catch (err: any) {
         console.error('Error fetching streams:', err);
-        toast.error(err.response?.data?.error?.message || 'Failed to fetch streams');
+        setDebugInfo({
+          timestamp: new Date().toISOString(),
+          error: err.message,
+          response: err.response?.data
+        });
         throw err;
       }
     },
-    refetchInterval: 5000,
+    refetchInterval: 10000, // Refresh every 10 seconds
   });
 
-  const canModify = user?.role === 'ADMIN' || user?.role === 'OPERATOR';
+  const streams = data?.streams || [];
+  const channels = data?.channels || [];
 
-  const startStreamMutation = useMutation({
-    mutationFn: (channelId: string) => streamsApi.start(channelId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['streams'] });
-      toast.success('Stream started successfully');
-    },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.error?.message || 'Failed to start stream');
-    },
-  });
-
-  const stopStreamMutation = useMutation({
-    mutationFn: (channelId: string) => streamsApi.stop(channelId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['streams'] });
-      toast.success('Stream stopped successfully');
-    },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.error?.message || 'Failed to stop stream');
-    },
-  });
-
-  if (isLoading) {
-    return <div>Loading...</div>;
-  }
-
-  if (error) {
-    return (
-      <div className="p-4 bg-red-50 border border-red-200 rounded">
-        <p className="text-red-800">Error loading streams: {error.message || 'Unknown error'}</p>
-        <p className="text-sm text-red-600 mt-2">Check browser console for details.</p>
-      </div>
-    );
-  }
-
-  const streams = (data as any)?.streams || [];
-  const channels = (data as any)?.channels || [];
-
-  // Map streams to channels by streamKey
-  const streamMap = new Map(streams.map((s: any) => [s.name, s]));
-  const activeStreamKeys = new Set(streams.map((s: any) => s.name));
-  
-  // Organize channels: active vs inactive
-  const channelsWithStreams = channels.map((ch: any) => ({
-    ...ch,
-    hasActiveStream: activeStreamKeys.has(ch.streamKey),
-    activeStream: streamMap.get(ch.streamKey) || null
-  }));
-  
-  const activeChannels = channelsWithStreams.filter((ch: any) => ch.hasActiveStream);
-  const inactiveChannels = channelsWithStreams.filter((ch: any) => !ch.hasActiveStream);
-  
-  // Streams without matching channels
-  const orphanStreams = streams.filter((s: any) => 
-    !channels.some((ch: any) => ch.streamKey === s.name)
-  );
-
-  // Debug: Log streams data
-  if (data) {
-    console.log('Streams data:', { streams, channels, rawData: data });
-  }
-
-  const toggleStreamExpanded = (streamName: string) => {
-    setExpandedStreams(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(streamName)) {
-        newSet.delete(streamName);
-      } else {
-        newSet.add(streamName);
-      }
-      return newSet;
-    });
-  };
+  // Auto-select first active stream for live player
+  useEffect(() => {
+    if (streams.length > 0 && !playingStream) {
+      const firstStream = streams[0];
+      setPlayingStream({
+        streamName: firstStream.name,
+        channel: firstStream.matchedChannel
+      });
+    }
+  }, [streams.length]); // Only depend on length to avoid infinite loops
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     toast.success(`${label} copied to clipboard`);
   };
 
-  const getRtmpUrl = (streamKey: string, appName?: string) => {
-    const app = appName || 'app';
-    return `rtmp://${OME_HOST}:1935/${app}/${streamKey}`;
-  };
+  // Debug logging
+  useEffect(() => {
+    if (data) {
+      console.log('Streams Page - Data:', {
+        streamsCount: streams.length,
+        channelsCount: channels.length,
+        streams: streams.map((s: any) => ({ name: s.name, appName: s.appName, state: s.state })),
+        channels: channels.map((c: any) => ({ name: c.name, streamKey: c.streamKey, appName: c.appName }))
+      });
+    }
+  }, [data, streams.length, channels.length]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+          <p className="text-muted-foreground">Loading streams...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="m-4">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-red-600">
+            <AlertCircle className="h-5 w-5" />
+            Error Loading Streams
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-red-600">{(error as any).message || 'Unknown error'}</p>
+          {debugInfo?.error && (
+            <div className="bg-muted p-3 rounded text-sm">
+              <p className="font-semibold mb-1">Debug Info:</p>
+              <pre className="text-xs overflow-auto">{JSON.stringify(debugInfo, null, 2)}</pre>
+            </div>
+          )}
+          <Button onClick={() => refetch()} variant="outline">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Retry
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      {/* Stream Detail Modal */}
-      <StreamDetailModal
-        streamName={selectedStream?.streamName || null}
-        channel={selectedStream?.channel}
-        open={!!selectedStream}
-        onOpenChange={(open) => {
-          if (!open) {
-            setSelectedStream(null);
-          }
-        }}
-      />
-
-      {/* Header */}
-      <div className="flex justify-between items-center">
+    <div className="space-y-6 p-6">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Streams & Channels</h1>
-          <p className="text-muted-foreground mt-1">Manage active streams and channel configurations</p>
-        </div>
-      </div>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold">{streams.length}</div>
-            <p className="text-xs text-muted-foreground mt-1">Active Streams</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold">{channels.length}</div>
-            <p className="text-xs text-muted-foreground mt-1">Total Channels</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-green-600">{activeChannels.length}</div>
-            <p className="text-xs text-muted-foreground mt-1">Channels Streaming</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-orange-600">{inactiveChannels.length}</div>
-            <p className="text-xs text-muted-foreground mt-1">Channels Ready</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Active Channels with Streams */}
-      {activeChannels.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-              Active Channels ({activeChannels.length})
-            </CardTitle>
-            <p className="text-sm text-muted-foreground">Channels that are currently streaming</p>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {activeChannels.map((channel: any) => (
-                <ChannelStreamCard
-                  key={channel.id}
-                  channel={channel}
-                  stream={channel.activeStream}
-                  canModify={canModify}
-                  onStop={() => stopStreamMutation.mutate(channel.id)}
-                  isStopping={stopStreamMutation.isPending}
-                  onCopy={copyToClipboard}
-                  expandedStreams={expandedStreams}
-                  onToggleStream={toggleStreamExpanded}
-                  getRtmpUrl={getRtmpUrl}
-                />
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Inactive Channels */}
-      {inactiveChannels.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
-              Available Channels ({inactiveChannels.length})
-            </CardTitle>
-            <p className="text-sm text-muted-foreground">Channels ready to stream but not currently active</p>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {inactiveChannels.map((channel: any) => (
-                <div key={channel.id} className="border rounded-lg p-4 hover:bg-accent/50 transition-colors">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="font-semibold">{channel.name}</h3>
-                        <span className="px-2 py-1 rounded text-xs bg-gray-100 text-gray-800">
-                          {channel.isActive ? 'Active' : 'Inactive'}
-                        </span>
-                      </div>
-                      {channel.description && (
-                        <p className="text-sm text-muted-foreground mb-2">{channel.description}</p>
-                      )}
-                      <div className="space-y-1 text-sm">
-                        <div>
-                          <span className="font-medium">Stream Key:</span>
-                          <code className="ml-2 px-2 py-1 bg-muted rounded text-xs">{channel.streamKey}</code>
-                        </div>
-                        <div>
-                          <span className="font-medium">RTMP URL:</span>
-                          <div className="flex items-center gap-2 mt-1">
-                            <code className="flex-1 px-2 py-1 bg-muted rounded text-xs">{getRtmpUrl(channel.streamKey, channel.appName)}</code>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7"
-                              onClick={() => copyToClipboard(getRtmpUrl(channel.streamKey, channel.appName), 'RTMP URL')}
-                            >
-                              <Copy className="w-3 h-3" />
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    {canModify && (
-                      <div className="flex gap-2 ml-4">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => startStreamMutation.mutate(channel.id)}
-                          disabled={channel.isActive || startStreamMutation.isPending}
-                        >
-                          {startStreamMutation.isPending ? 'Starting...' : 'Start'}
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Orphan Streams (streams without matching channels) */}
-      {orphanStreams.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <span className="w-2 h-2 bg-orange-500 rounded-full"></span>
-              Unmanaged Streams ({orphanStreams.length})
-            </CardTitle>
-            <p className="text-sm text-muted-foreground">Active streams not associated with any channel</p>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {orphanStreams.map((stream: any) => (
-                <StreamCard
-                  key={stream.name}
-                  stream={stream}
-                  isExpanded={expandedStreams.has(stream.name)}
-                  onToggleExpand={() => toggleStreamExpanded(stream.name)}
-                  onCopy={copyToClipboard}
-                />
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Empty States */}
-      {streams.length === 0 && channels.length === 0 && (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <p className="text-muted-foreground mb-4">No streams or channels configured</p>
-            <p className="text-sm text-muted-foreground">
-              Create a channel first, then connect via RTMP to start streaming
-            </p>
-          </CardContent>
-        </Card>
-      )}
-    </div>
-  );
-}
-
-function ChannelStreamCard({ 
-  channel, 
-  stream, 
-  canModify, 
-  onStop, 
-  isStopping,
-  onCopy,
-  expandedStreams,
-  onToggleStream,
-  getRtmpUrl
-}: {
-  channel: any;
-  stream: any;
-  canModify: boolean;
-  onStop: () => void;
-  isStopping: boolean;
-  onCopy: (text: string, label: string) => void;
-  expandedStreams: Set<string>;
-  onToggleStream: (streamName: string) => void;
-  getRtmpUrl: (streamKey: string, appName?: string) => string;
-}) {
-  const [showDetails, setShowDetails] = useState(false);
-  
-  const { data: outputsData, isLoading: outputsLoading } = useQuery({
-    queryKey: ['channel-outputs', channel.id],
-    queryFn: async () => {
-      const response = await channelsApi.getOutputs(channel.id);
-      return response.data;
-    },
-    enabled: showDetails && channel.isActive,
-  });
-
-  const outputs = outputsData?.outputs;
-  const isStreamExpanded = expandedStreams.has(stream.name);
-
-  return (
-    <div className="border rounded-lg overflow-hidden bg-card">
-      <div className="p-4">
-        <div className="flex items-start justify-between mb-3">
-          <div className="flex-1">
-            <div className="flex items-center gap-3 mb-2">
-              <h3 className="text-lg font-semibold">{channel.name}</h3>
-              <span className="px-2 py-1 rounded text-xs bg-green-100 text-green-800">
-                Streaming
-              </span>
-            </div>
-            {channel.description && (
-              <p className="text-sm text-muted-foreground mb-3">{channel.description}</p>
-            )}
-            
-            {/* Stream Info */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-              <div>
-                <span className="font-medium text-muted-foreground">Stream Key:</span>
-                <code className="ml-2 px-2 py-1 bg-muted rounded text-xs">{channel.streamKey}</code>
-              </div>
-              <div>
-                <span className="font-medium text-muted-foreground">Source:</span>
-                <span className="ml-2">{stream.input?.sourceType || stream.sourceType || 'Unknown'}</span>
-              </div>
-              <div className="md:col-span-2">
-                <span className="font-medium text-muted-foreground">RTMP URL:</span>
-                <div className="flex items-center gap-2 mt-1">
-                  <code className="flex-1 px-2 py-1 bg-muted rounded text-xs">{getRtmpUrl(channel.streamKey, channel.appName)}</code>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7"
-                    onClick={() => onCopy(getRtmpUrl(channel.streamKey, channel.appName), 'RTMP URL')}
-                  >
-                    <Copy className="w-3 h-3" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-2 ml-4">
-            {canModify && (
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={onStop}
-                disabled={isStopping}
-              >
-                {isStopping ? 'Stopping...' : 'Stop Stream'}
-              </Button>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowDetails(!showDetails)}
-            >
-              {showDetails ? 'Hide Details' : 'Show Details'}
-            </Button>
-            <Button
-              variant="default"
-              size="sm"
-              onClick={() => setSelectedStream({ streamName: stream.name, channel })}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              <Eye className="w-4 h-4 mr-2" />
-              View Details
-            </Button>
-          </div>
-        </div>
-
-        {/* Stream Details Toggle */}
-        {stream && (
-          <div className="mt-3 pt-3 border-t">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onToggleStream(stream.name)}
-              className="w-full justify-between"
-            >
-              <span>Stream Details & Output URLs</span>
-              {isStreamExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            </Button>
-          </div>
-        )}
-      </div>
-
-      {/* Expanded Stream Details */}
-      {isStreamExpanded && stream && (
-        <div className="p-4 border-t bg-muted/30">
-          <StreamDetails 
-            stream={stream} 
-            outputs={outputs} 
-            outputsLoading={outputsLoading}
-            onCopy={onCopy}
-          />
-        </div>
-      )}
-
-      {/* Channel Output URLs */}
-      {showDetails && outputs && (
-        <div className="p-4 border-t bg-muted/50">
-          <h4 className="text-sm font-semibold mb-3">Channel Output URLs</h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {outputs.llhls && (
-              <OutputUrlRow label="LLHLS" url={outputs.llhls} onCopy={onCopy} small />
-            )}
-            {outputs.hls && (
-              <OutputUrlRow label="HLS" url={outputs.hls} onCopy={onCopy} small />
-            )}
-            {outputs.dash && (
-              <OutputUrlRow label="DASH" url={outputs.dash} onCopy={onCopy} small />
-            )}
-            {outputs.webrtc && (
-              <OutputUrlRow label="WebRTC" url={outputs.webrtc} onCopy={onCopy} small />
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function StreamDetails({ stream, outputs, outputsLoading, onCopy }: {
-  stream: any;
-  outputs: any;
-  outputsLoading: boolean;
-  onCopy: (text: string, label: string) => void;
-}) {
-  return (
-    <div className="space-y-4">
-      <div>
-        <p className="text-xs text-muted-foreground mb-2">
-          <strong>Created:</strong> {new Date(stream.createdTime || stream.input?.createdTime || Date.now()).toLocaleString()}
-        </p>
-      </div>
-
-      {outputsLoading ? (
-        <p className="text-sm text-muted-foreground">Loading output URLs...</p>
-      ) : outputs ? (
-        <div className="space-y-3">
-          <div>
-            <h4 className="text-sm font-semibold mb-2">Output URLs</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              <OutputUrlRow label="LLHLS" url={outputs.llhls} onCopy={onCopy} small />
-              <OutputUrlRow label="HLS" url={outputs.hls} onCopy={onCopy} small />
-              <OutputUrlRow label="DASH" url={outputs.dash} onCopy={onCopy} small />
-              <OutputUrlRow label="WebRTC" url={outputs.webrtc} onCopy={onCopy} small />
-              {outputs.thumbnail && (
-                <OutputUrlRow label="Thumbnail" url={outputs.thumbnail} onCopy={onCopy} isImage small />
-              )}
-            </div>
-          </div>
-        </div>
-      ) : (
-        <p className="text-sm text-muted-foreground">Output URLs not available</p>
-      )}
-    </div>
-  );
-}
-
-function StreamCard({ 
-  stream, 
-  isExpanded, 
-  onToggleExpand, 
-  onCopy 
-}: {
-  stream: any; 
-  isExpanded: boolean; 
-  onToggleExpand: () => void;
-  onCopy: (text: string, label: string) => void;
-}) {
-  const { data: outputsData, isLoading: outputsLoading } = useQuery({
-    queryKey: ['stream-outputs', stream.name],
-    queryFn: async () => {
-      const response = await streamsApi.getOutputs(stream.name);
-      return response.data;
-    },
-    enabled: isExpanded, // Only fetch when expanded
-  });
-
-  const outputs = outputsData?.outputs;
-
-  return (
-    <div className="border rounded-lg overflow-hidden">
-      <div
-        className="p-3 cursor-pointer hover:bg-accent flex justify-between items-center"
-        onClick={onToggleExpand}
-      >
-        <div className="flex-1">
-          <p className="font-medium">{stream.name || 'Unknown Stream'}</p>
-          <p className="text-sm text-muted-foreground">
-            {stream.input?.sourceType || stream.sourceType || 'Unknown source'}
+          <h1 className="text-3xl font-bold">Streams</h1>
+          <p className="text-muted-foreground mt-1">
+            Active streams from OvenMediaEngine ({streams.length} active)
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              setSelectedStream({ streamName: stream.name });
-            }}
-          >
-            <Eye className="w-3 h-3 mr-1" />
-            View
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => refetch()} title="Refresh streams">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
           </Button>
-          <span className="px-2 py-1 rounded text-xs bg-green-100 text-green-800">
-            Active
-          </span>
-          {isExpanded ? (
-            <ChevronUp className="w-4 h-4 text-muted-foreground" />
-          ) : (
-            <ChevronDown className="w-4 h-4 text-muted-foreground" />
-          )}
+          <Button variant="outline" onClick={() => setShowCreateGuide(true)}>
+            <Info className="h-4 w-4 mr-2" />
+            How to Create Stream
+          </Button>
+          <Button onClick={() => window.location.href = '/channels'}>
+            <Plus className="h-4 w-4 mr-2" />
+            Create Channel
+          </Button>
         </div>
       </div>
-      
-      {isExpanded && (
-        <div className="p-4 border-t bg-muted/50 space-y-4">
-          <div>
-            <p className="text-xs text-muted-foreground mb-2">
-              <strong>Created:</strong> {new Date(stream.createdTime || Date.now()).toLocaleString()}
-            </p>
-            {stream.meta && (
-              <p className="text-xs text-muted-foreground">
-                <strong>Metadata:</strong> {JSON.stringify(stream.meta)}
-              </p>
-            )}
-          </div>
 
-          {outputsLoading ? (
-            <p className="text-sm text-muted-foreground">Loading output URLs...</p>
-          ) : outputs ? (
-            <div className="space-y-4">
-              <div>
-                <h4 className="text-sm font-semibold mb-2">Output URLs</h4>
-                <div className="space-y-2">
-                  <OutputUrlRow
-                    label="LLHLS (Low Latency HLS)"
-                    url={outputs.llhls}
-                    onCopy={onCopy}
-                  />
-                  <OutputUrlRow
-                    label="HLS"
-                    url={outputs.hls}
-                    onCopy={onCopy}
-                  />
-                  <OutputUrlRow
-                    label="DASH (MPD)"
-                    url={outputs.dash}
-                    onCopy={onCopy}
-                  />
-                  <OutputUrlRow
-                    label="WebRTC"
-                    url={outputs.webrtc}
-                    onCopy={onCopy}
-                  />
-                  <OutputUrlRow
-                    label="SRT"
-                    url={outputs.srt}
-                    onCopy={onCopy}
-                  />
-                  {outputs.thumbnail && (
-                    <OutputUrlRow
-                      label="Thumbnail"
-                      url={outputs.thumbnail}
-                      onCopy={onCopy}
-                      isImage={true}
-                    />
+      {/* Debug Info Banner (if no streams but channels exist) */}
+      {streams.length === 0 && channels.length > 0 && (
+        <Card className="border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-yellow-600 mt-0.5" />
+              <div className="flex-1">
+                <p className="font-semibold text-yellow-800 dark:text-yellow-200">No Active Streams Detected</p>
+                <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
+                  You have {channels.length} channel(s) configured, but no active streams found.
+                </p>
+                <div className="mt-3 space-y-2 text-sm">
+                  <p className="font-semibold">Troubleshooting:</p>
+                  <ul className="list-disc list-inside space-y-1 text-yellow-700 dark:text-yellow-300 ml-2">
+                    <li>Ensure you're streaming to: <code className="bg-yellow-100 dark:bg-yellow-900 px-1 rounded">rtmp://{OME_HOST}:1935/[APP_NAME]/[STREAM_KEY]</code></li>
+                    <li>Verify your channel's <strong>App Name</strong> matches your RTMP application</li>
+                    <li>Check that your <strong>Stream Key</strong> matches exactly</li>
+                    <li>Wait a few seconds after starting the stream</li>
+                    <li>Click <strong>Refresh</strong> to check again</li>
+                  </ul>
+                  {channels.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-yellow-300 dark:border-yellow-700">
+                      <p className="font-semibold mb-2">Your Channels:</p>
+                      <div className="space-y-1">
+                        {channels.slice(0, 3).map((ch: any) => (
+                          <div key={ch.id} className="text-xs bg-yellow-100 dark:bg-yellow-900 px-2 py-1 rounded">
+                            <strong>{ch.name}</strong> → RTMP: <code>rtmp://{OME_HOST}:1935/{ch.appName || 'app'}/{ch.streamKey}</code>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-              {outputs.profiles && outputs.profiles.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-semibold mb-2">Output Profiles</h4>
-                  <div className="space-y-3">
-                    {outputs.profiles.map((profile: any) => (
-                      <div key={profile.name} className="pl-4 border-l-2">
-                        <p className="text-xs font-medium mb-2">{profile.name}</p>
-                        <div className="space-y-2">
-                          <OutputUrlRow
-                            label="LLHLS"
-                            url={profile.llhls}
-                            onCopy={onCopy}
-                            small={true}
-                          />
-                          <OutputUrlRow
-                            label="HLS"
-                            url={profile.hls}
-                            onCopy={onCopy}
-                            small={true}
-                          />
-                          <OutputUrlRow
-                            label="DASH"
-                            url={profile.dash}
-                            onCopy={onCopy}
-                            small={true}
-                          />
+      {/* Live Player Section - Like Wowza/Flussonic */}
+      {streams.length > 0 && playingStream && (
+        <Card className="overflow-hidden">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-xl flex items-center gap-2">
+                <Play className="h-5 w-5 text-primary" />
+                Live Preview
+              </CardTitle>
+              <div className="flex gap-2">
+                <select
+                  value={playingStream.streamName}
+                  onChange={(e) => {
+                    const stream = streams.find((s: any) => s.name === e.target.value);
+                    if (stream) {
+                      setPlayingStream({
+                        streamName: stream.name,
+                        channel: stream.matchedChannel
+                      });
+                    }
+                  }}
+                  className="px-3 py-1.5 text-sm border rounded-md bg-background"
+                >
+                  {streams.map((stream: any) => (
+                    <option key={`${stream.appName || 'app'}-${stream.name}`} value={stream.name}>
+                      {stream.name} ({stream.appName || 'app'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <InlineStreamPlayer
+              streamName={playingStream.streamName}
+              channel={playingStream.channel}
+              onStreamChange={(streamName) => {
+                if (!streamName) {
+                  setPlayingStream(null);
+                }
+              }}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Streams Grid */}
+      {streams.length === 0 ? (
+        <Card>
+          <CardContent className="p-12 text-center">
+            <Activity className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
+            <p className="text-muted-foreground text-lg font-semibold">No active streams found</p>
+            <p className="text-sm text-muted-foreground mt-2 mb-4">
+              Create a channel and start streaming to see live streams here
+            </p>
+            <div className="flex gap-2 justify-center">
+              <Button onClick={() => refetch()} variant="outline">
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
+              </Button>
+              <Button onClick={() => setShowCreateGuide(true)} variant="outline">
+                <Info className="h-4 w-4 mr-2" />
+                How to Create Stream
+              </Button>
+              <Button onClick={() => window.location.href = '/channels'}>
+                <Plus className="h-4 w-4 mr-2" />
+                Create Channel
+              </Button>
+            </div>
+            {debugInfo && (
+              <div className="mt-6 text-left bg-muted p-4 rounded text-xs max-w-2xl mx-auto">
+                <p className="font-semibold mb-2">Last Check: {new Date(debugInfo.timestamp).toLocaleTimeString()}</p>
+                <pre className="overflow-auto">{JSON.stringify(debugInfo, null, 2)}</pre>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <div>
+          <h2 className="text-xl font-semibold mb-4">All Streams</h2>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {streams.map((stream: any) => {
+              const inputSource = stream.input || stream.sources?.[0];
+              const inputUrl = inputSource 
+                ? `rtmp://${OME_HOST}:1935/${stream.appName || 'app'}/${stream.name}`
+                : 'N/A';
+              const thumbnailUrl = `http://${OME_HOST}:3333/${stream.appName || 'app'}/${stream.name}/thumbnail`;
+              const isPlaying = playingStream?.streamName === stream.name;
+
+              return (
+                <Card 
+                  key={`${stream.appName || 'app'}-${stream.name}`} 
+                  className={`overflow-hidden ${isPlaying ? 'ring-2 ring-primary' : ''}`}
+                >
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <CardTitle className="text-lg font-semibold">{stream.name}</CardTitle>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          App: {stream.appName || 'app'}
+                        </p>
+                      </div>
+                      <Badge variant={stream.state === 'started' ? 'default' : 'secondary'}>
+                        {stream.state === 'started' ? 'Active' : stream.state || 'Unknown'}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* Stream Thumbnail */}
+                    <div className="relative bg-black rounded-md overflow-hidden aspect-video cursor-pointer group"
+                      onClick={() => setPlayingStream({ streamName: stream.name, channel: stream.matchedChannel })}
+                    >
+                      <img
+                        src={thumbnailUrl}
+                        alt={stream.name}
+                        className="w-full h-full object-cover group-hover:opacity-80 transition-opacity"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/50 group-hover:bg-black/30 transition-colors">
+                        <div className="text-white text-center">
+                          <Play className="w-8 h-8 mx-auto mb-2 opacity-75 group-hover:opacity-100 transition-opacity" />
+                          <p className="text-sm">{isPlaying ? 'Playing' : 'Click to Preview'}</p>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">Output URLs not available</p>
-          )}
+                      {isPlaying && (
+                        <div className="absolute top-2 left-2 bg-primary text-primary-foreground px-2 py-1 rounded text-xs font-semibold">
+                          LIVE
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Stream Info */}
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Source:</span>
+                        <span>{inputSource?.sourceType || 'Unknown'}</span>
+                      </div>
+                      {stream.uptime && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Uptime:</span>
+                          <span>{Math.floor(stream.uptime / 60)}m {stream.uptime % 60}s</span>
+                        </div>
+                      )}
+                      {stream.currentBandwidth && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Bandwidth:</span>
+                          <span>{formatBitrate(stream.currentBandwidth)}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex gap-2">
+                      <Button
+                        variant={isPlaying ? 'default' : 'outline'}
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => setPlayingStream({ streamName: stream.name, channel: stream.matchedChannel })}
+                      >
+                        <Play className="w-4 h-4 mr-2" />
+                        {isPlaying ? 'Playing' : 'Preview'}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSelectedStream({ streamName: stream.name, channel: stream.matchedChannel })}
+                      >
+                        <Eye className="w-4 h-4" />
+                      </Button>
+                    </div>
+
+                    {/* Quick Info */}
+                    {inputUrl !== 'N/A' && (
+                      <div className="pt-2 border-t">
+                        <p className="text-xs text-muted-foreground mb-1">Input URL:</p>
+                        <div className="flex items-center gap-2">
+                          <code className="flex-1 text-xs bg-muted p-2 rounded truncate">
+                            {inputUrl}
+                          </code>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => copyToClipboard(inputUrl, 'Input URL')}
+                          >
+                            <Copy className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
         </div>
       )}
-    </div>
-  );
-}
 
-
-function OutputUrlRow({ label, url, onCopy, isImage = false, small = false }: {
-  label: string;
-  url: string;
-  onCopy: (text: string, label: string) => void;
-  isImage?: boolean;
-  small?: boolean;
-}) {
-  const textSize = small ? 'text-xs' : 'text-sm';
-  
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between">
-        <span className={`${textSize} font-medium text-muted-foreground`}>{label}:</span>
-        <div className="flex gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 px-2"
-            onClick={(e) => {
-              e.stopPropagation();
-              onCopy(url, label);
-            }}
-            title="Copy URL"
-          >
-            <Copy className="w-3 h-3" />
-          </Button>
-          {!isImage && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 px-2"
-              onClick={(e) => {
-                e.stopPropagation();
-                window.open(url, '_blank');
-              }}
-              title="Open in new tab"
-            >
-              <ExternalLink className="w-3 h-3" />
-            </Button>
-          )}
-        </div>
-      </div>
-      <div className="flex items-center gap-2">
-        <Input
-          value={url}
-          readOnly
-          className={`font-mono ${textSize} bg-background`}
-          onClick={(e) => {
-            e.stopPropagation();
-            (e.target as HTMLInputElement).select();
+      {/* Stream Detail Modal */}
+      {selectedStream && (
+        <StreamDetailModal
+          streamName={selectedStream.streamName}
+          channel={selectedStream.channel}
+          open={!!selectedStream}
+          onOpenChange={(open) => {
+            if (!open) setSelectedStream(null);
           }}
         />
-      </div>
-      {isImage && url && (
-        <div className="mt-2">
-          <img
-            src={url}
-            alt="Stream thumbnail"
-            className="max-w-xs border rounded"
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = 'none';
-            }}
-          />
-        </div>
       )}
+
+      {/* Create Stream Guide Dialog */}
+      <Dialog open={showCreateGuide} onOpenChange={setShowCreateGuide}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>How to Create a New Stream</DialogTitle>
+            <DialogDescription>
+              Learn how to set up streaming in OvenMediaEngine
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <h3 className="font-semibold mb-2">Understanding Streams vs Channels</h3>
+              <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground ml-2">
+                <li><strong>Channel:</strong> A configuration that defines where streams will be received</li>
+                <li><strong>Stream:</strong> An active live connection (appears when someone is broadcasting)</li>
+              </ul>
+            </div>
+
+            <div>
+              <h3 className="font-semibold mb-2">Step 1: Create a Channel</h3>
+              <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground ml-2">
+                <li>Go to <strong>Channels</strong> page</li>
+                <li>Click <strong>"Create Channel"</strong></li>
+                <li>Enter:
+                  <ul className="list-disc list-inside ml-4 mt-1">
+                    <li><strong>Channel Name:</strong> e.g., "My Live Stream"</li>
+                    <li><strong>Stream Key:</strong> e.g., "my-stream-key" (must be unique)</li>
+                    <li><strong>App Name:</strong> Usually "app" or "live"</li>
+                  </ul>
+                </li>
+                <li>Click <strong>"Create"</strong></li>
+              </ol>
+            </div>
+
+            <div>
+              <h3 className="font-semibold mb-2">Step 2: Start Streaming</h3>
+              <p className="text-sm text-muted-foreground mb-2">
+                Use your streaming software (OBS, FFmpeg, etc.) to connect:
+              </p>
+              <div className="bg-muted p-3 rounded-md space-y-2">
+                <div>
+                  <p className="text-xs font-semibold mb-1">RTMP URL Format:</p>
+                  <code className="text-xs bg-background px-2 py-1 rounded block">
+                    rtmp://{OME_HOST}:1935/[APP_NAME]/[STREAM_KEY]
+                  </code>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold mb-1">Example:</p>
+                  <code className="text-xs bg-background px-2 py-1 rounded block">
+                    rtmp://{OME_HOST}:1935/app/my-stream-key
+                  </code>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="font-semibold mb-2">Troubleshooting: Stream Not Appearing?</h3>
+              <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground ml-2">
+                <li>Verify you're streaming to the correct RTMP URL</li>
+                <li>Check that <strong>App Name</strong> in channel matches RTMP application</li>
+                <li>Ensure <strong>Stream Key</strong> matches exactly (case-sensitive)</li>
+                <li>Wait 5-10 seconds after starting stream</li>
+                <li>Click <strong>Refresh</strong> button to check again</li>
+                <li>Check browser console (F12) for any errors</li>
+              </ul>
+            </div>
+
+            <div>
+              <h3 className="font-semibold mb-2">Step 3: View Your Stream</h3>
+              <p className="text-sm text-muted-foreground">
+                Once you start streaming, your stream will automatically appear on this page. 
+                Click on any stream card to view live preview.
+              </p>
+            </div>
+
+            <div className="pt-4 border-t">
+              <div className="flex gap-2">
+                <Button onClick={() => window.location.href = '/channels'} className="flex-1">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Channel Now
+                </Button>
+                <Button variant="outline" onClick={() => setShowCreateGuide(false)}>
+                  Close
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
-
-

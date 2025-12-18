@@ -75,30 +75,33 @@ export function SettingsPage() {
             <form onSubmit={handleChangePassword} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-2">Current Password</label>
-                <Input
-                  type="password"
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  required
-                />
+              <Input
+                type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                required
+                autoComplete="current-password"
+              />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">New Password</label>
-                <Input
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  required
-                />
+              <Input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                required
+                autoComplete="new-password"
+              />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">Confirm New Password</label>
-                <Input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                />
+              <Input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                autoComplete="new-password"
+              />
               </div>
               <Button type="submit" disabled={loading}>
                 {loading ? 'Changing...' : 'Change Password'}

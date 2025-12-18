@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Dialog,
@@ -6,12 +6,12 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from './ui/dialog';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
+} from '../ui/dialog';
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
 import { Copy, ExternalLink, Radio, Settings, Link2 } from 'lucide-react';
-import { channelsApi } from '../lib/api';
+import { channelsApi } from '../../lib/api';
 import toast from 'react-hot-toast';
 
 interface ChannelDetailModalProps {
@@ -25,7 +25,6 @@ export function ChannelDetailModal({
   open,
   onOpenChange,
 }: ChannelDetailModalProps) {
-  const [selectedUrl, setSelectedUrl] = useState<string>('');
 
   // Fetch channel details
   const { data: channelData, isLoading: isLoadingChannel } = useQuery({

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { scheduledChannelsApi } from '../lib/api';
 import { Button } from '../components/ui/button';
@@ -7,6 +7,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { useAuthStore } from '../store/authStore';
 import toast from 'react-hot-toast';
+import { Eye, Edit, Trash2 } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '../components/ui/dialog';
 
 export function ScheduledChannelsPage() {
   const { user } = useAuthStore();
@@ -15,14 +23,56 @@ export function ScheduledChannelsPage() {
   const [channelName, setChannelName] = useState('');
   const [editingChannel, setEditingChannel] = useState<string | null>(null);
   const [editSchedule, setEditSchedule] = useState<any[]>([]);
+  const [selectedChannel, setSelectedChannel] = useState<string | null>(null);
+  const [viewChannel, setViewChannel] = useState<any>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['scheduled-channels'],
     queryFn: async () => {
-      const response = await scheduledChannelsApi.getAll();
-      return response.data;
+      try {
+        const response = await scheduledChannelsApi.getAll();
+        return response.data;
+      } catch (err: any) {
+        toast.error(err.response?.data?.error?.message || 'Failed to fetch scheduled channels');
+        throw err;
+      }
     },
   });
+
+  // Fetch selected channel details
+  const { data: channelDetailData } = useQuery({
+    queryKey: ['scheduled-channel-detail', selectedChannel],
+    queryFn: async () => {
+      if (!selectedChannel) return null;
+      try {
+        const response = await scheduledChannelsApi.getById(selectedChannel);
+        return response.data;
+      } catch (err: any) {
+        toast.error(err.response?.data?.error?.message || 'Failed to fetch channel details');
+        return null;
+      }
+    },
+    enabled: !!selectedChannel,
+  });
+
+  // Update view channel when detail data is fetched
+  useEffect(() => {
+    if (channelDetailData?.scheduledChannel) {
+      const channel = channelDetailData.scheduledChannel;
+      // Ensure schedule is always an array to prevent .map() errors
+      if (channel && !Array.isArray(channel.schedule)) {
+        channel.schedule = [];
+      }
+      // Ensure items in schedule are arrays
+      if (channel && Array.isArray(channel.schedule)) {
+        channel.schedule = channel.schedule.map((item: any) => ({
+          ...item,
+          items: Array.isArray(item.items) ? item.items : (item.items ? [item.items] : [])
+        }));
+      }
+      setViewChannel(channel);
+    }
+  }, [channelDetailData]);
 
   const canModify = user?.role === 'ADMIN' || user?.role === 'OPERATOR';
 
@@ -91,8 +141,33 @@ export function ScheduledChannelsPage() {
     });
   };
 
+  const handleViewChannel = (channel: any) => {
+    setSelectedChannel(channel.name);
+    setViewChannel(channel);
+  };
+
   if (isLoading) {
-    return <div>Loading...</div>;
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+          <p className="text-muted-foreground">Loading scheduled channels...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-600 mb-2">Error loading scheduled channels</p>
+          <Button onClick={() => queryClient.invalidateQueries({ queryKey: ['scheduled-channels'] })}>
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   const channels = data?.scheduledChannels || [];
@@ -221,26 +296,41 @@ export function ScheduledChannelsPage() {
                           </span>
                         </TableCell>
                         <TableCell>
-                          {canModify && (
-                            <div className="flex gap-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleEdit(channel)}
-                                disabled={editingChannel !== null}
-                              >
-                                Edit
-                              </Button>
-                              <Button
-                                variant="destructive"
-                                size="sm"
-                                onClick={() => deleteMutation.mutate(channel.name)}
-                                disabled={editingChannel !== null}
-                              >
-                                Delete
-                              </Button>
-                            </div>
-                          )}
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleViewChannel(channel)}
+                              title="View channel details"
+                            >
+                              <Eye className="w-4 h-4 mr-1" />
+                              View
+                            </Button>
+                            {canModify && (
+                              <>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleEdit(channel)}
+                                  disabled={editingChannel !== null}
+                                  title="Edit channel schedule"
+                                >
+                                  <Edit className="w-4 h-4 mr-1" />
+                                  Edit
+                                </Button>
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => deleteMutation.mutate(channel.name)}
+                                  disabled={editingChannel !== null}
+                                  title="Delete scheduled channel"
+                                >
+                                  <Trash2 className="w-4 h-4 mr-1" />
+                                  Delete
+                                </Button>
+                              </>
+                            )}
+                          </div>
                         </TableCell>
                       </>
                     )}
@@ -251,6 +341,155 @@ export function ScheduledChannelsPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Scheduled Channel Detail Modal */}
+      <Dialog open={!!selectedChannel} onOpenChange={(open) => {
+        if (!open) {
+          setSelectedChannel(null);
+          setViewChannel(null);
+        }
+      }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Scheduled Channel Details</DialogTitle>
+            <DialogDescription>
+              View and manage scheduled channel: {selectedChannel}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {viewChannel ? (
+            <div className="space-y-6">
+              {/* Channel Info */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Channel Information</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Channel Name</p>
+                      <p className="text-base font-semibold">{viewChannel.name}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Schedule Items</p>
+                      <p className="text-base font-semibold">{viewChannel.schedule?.length || 0} items</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Schedule Items */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Schedule Configuration</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {viewChannel.schedule && Array.isArray(viewChannel.schedule) && viewChannel.schedule.length > 0 ? (
+                    <div className="space-y-4">
+                      {viewChannel.schedule.map((item: any, index: number) => (
+                        <div key={index} className="p-4 border rounded-lg">
+                          <div className="flex items-start justify-between mb-2">
+                            <h4 className="font-semibold">Item {index + 1}</h4>
+                            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
+                              {item.type || 'Program'}
+                            </span>
+                          </div>
+                          <div className="space-y-2 text-sm">
+                            {item.name && (
+                              <div>
+                                <span className="font-medium">Name: </span>
+                                <span>{item.name}</span>
+                              </div>
+                            )}
+                            {item.scheduled && (
+                              <div>
+                                <span className="font-medium">Scheduled: </span>
+                                <span>{new Date(item.scheduled).toLocaleString()}</span>
+                              </div>
+                            )}
+                            {item.repeat !== undefined && (
+                              <div>
+                                <span className="font-medium">Repeat: </span>
+                                <span>{item.repeat ? 'Yes' : 'No'}</span>
+                              </div>
+                            )}
+                            {item.items && Array.isArray(item.items) && item.items.length > 0 ? (
+                              <div>
+                                <span className="font-medium">Items: </span>
+                                <div className="ml-4 mt-1 space-y-1">
+                                  {item.items.map((subItem: any, subIndex: number) => (
+                                    <div key={subIndex} className="text-xs">
+                                      <span className="font-medium">URL: </span>
+                                      <code className="bg-muted px-1 py-0.5 rounded">
+                                        {subItem.url || 'N/A'}
+                                      </code>
+                                      {subItem.duration && (
+                                        <span className="ml-2">
+                                          Duration: {subItem.duration === -1 ? 'Indefinite' : `${subItem.duration}s`}
+                                        </span>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <p>No schedule items configured</p>
+                      <p className="text-xs mt-2">Edit the channel to add schedule items</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Raw JSON View */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Raw Schedule JSON</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <pre className="p-4 bg-muted rounded-lg overflow-x-auto text-xs">
+                    {JSON.stringify(viewChannel.schedule || [], null, 2)}
+                  </pre>
+                </CardContent>
+              </Card>
+
+              <div className="flex justify-end gap-2">
+                {canModify && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      handleEdit(viewChannel);
+                      setSelectedChannel(null);
+                      setViewChannel(null);
+                    }}
+                  >
+                    <Edit className="w-4 h-4 mr-2" />
+                    Edit Schedule
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setSelectedChannel(null);
+                    setViewChannel(null);
+                  }}
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

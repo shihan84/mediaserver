@@ -1,437 +1,413 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { schedulesApi, channelsApi } from '../lib/api';
+import { scheduledChannelsApi } from '../lib/api';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { useAuthStore } from '../store/authStore';
 import toast from 'react-hot-toast';
-import { formatDate } from '../lib/utils';
+import { Calendar, Repeat, Plus, Edit, Trash2 } from 'lucide-react';
+
+// Simple Badge component
+const Badge = ({ children, variant = 'default', className = '' }: { children: React.ReactNode; variant?: 'default' | 'secondary' | 'outline'; className?: string }) => {
+  const baseStyles = 'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold';
+  const variantStyles = variant === 'default' 
+    ? 'bg-primary text-primary-foreground' 
+    : variant === 'secondary'
+    ? 'bg-secondary text-secondary-foreground'
+    : 'border border-input bg-background';
+  return <span className={`${baseStyles} ${variantStyles} ${className}`}>{children}</span>;
+};
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '../components/ui/dialog';
 
 export function SchedulesPage() {
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
-  const [scheduleName, setScheduleName] = useState('');
-  const [scheduleDescription, setScheduleDescription] = useState('');
-  const [channelId, setChannelId] = useState('');
-  const [startTime, setStartTime] = useState('');
-  const [endTime, setEndTime] = useState('');
-  const [isRecurring, setIsRecurring] = useState(false);
-  const [recurrenceRule, setRecurrenceRule] = useState('');
+  const [editingChannel, setEditingChannel] = useState<any | null>(null);
+  const [channelName, setChannelName] = useState('');
+  const [programName, setProgramName] = useState('');
+  const [scheduled, setScheduled] = useState('');
+  const [repeat, setRepeat] = useState(false);
+  const [items, setItems] = useState<Array<{ url: string; start?: number; duration?: number }>>([]);
+  const [newItemUrl, setNewItemUrl] = useState('');
+  const [newItemStart, setNewItemStart] = useState('');
+  const [newItemDuration, setNewItemDuration] = useState('');
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['schedules'],
+  // Simple query - fetch scheduled channels from OME
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['scheduled-channels'],
     queryFn: async () => {
-      const response = await schedulesApi.getAll();
+      const response = await scheduledChannelsApi.getAll();
       return response.data;
     },
+    refetchInterval: 30000, // Refresh every 30 seconds
   });
 
-  const { data: channelsData } = useQuery({
-    queryKey: ['channels'],
-    queryFn: async () => {
-      const response = await channelsApi.getAll();
-      return response.data;
-    },
-  });
+  const scheduledChannels = data?.scheduledChannels || [];
+
+  const canModify = user?.role === 'ADMIN' || user?.role === 'OPERATOR';
 
   const createMutation = useMutation({
-    mutationFn: (data: any) => schedulesApi.create(data),
+    mutationFn: (data: any) => scheduledChannelsApi.create(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['schedules'] });
-      toast.success('Schedule created successfully');
+      queryClient.invalidateQueries({ queryKey: ['scheduled-channels'] });
+      toast.success('Scheduled channel created successfully');
       setShowCreateForm(false);
       resetForm();
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.error?.message || 'Failed to create schedule');
-    },
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) => schedulesApi.update(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['schedules'] });
-      toast.success('Schedule updated successfully');
-      setEditingScheduleId(null);
-      resetForm();
-    },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.error?.message || 'Failed to update schedule');
+      toast.error(error.response?.data?.error?.message || 'Failed to create scheduled channel');
     },
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => schedulesApi.delete(id),
+    mutationFn: (channelName: string) => scheduledChannelsApi.delete(channelName),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['schedules'] });
-      toast.success('Schedule deleted successfully');
+      queryClient.invalidateQueries({ queryKey: ['scheduled-channels'] });
+      toast.success('Scheduled channel deleted successfully');
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.error?.message || 'Failed to delete schedule');
+      toast.error(error.response?.data?.error?.message || 'Failed to delete scheduled channel');
     },
   });
 
   const resetForm = () => {
-    setScheduleName('');
-    setScheduleDescription('');
-    setChannelId('');
-    setStartTime('');
-    setEndTime('');
-    setIsRecurring(false);
-    setRecurrenceRule('');
+    setChannelName('');
+    setProgramName('');
+    setScheduled('');
+    setRepeat(false);
+    setItems([]);
+    setNewItemUrl('');
+    setNewItemStart('');
+    setNewItemDuration('');
   };
 
-  const handleCreate = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!scheduleName.trim() || !channelId || !startTime || !endTime) {
-      toast.error('Name, channel, start time, and end time are required');
+  const addItem = () => {
+    if (!newItemUrl.trim()) {
+      toast.error('Please enter an item URL');
       return;
     }
-    createMutation.mutate({
-      name: scheduleName.trim(),
-      description: scheduleDescription.trim() || undefined,
-      channelId,
-      startTime: new Date(startTime).toISOString(),
-      endTime: new Date(endTime).toISOString(),
-      isRecurring,
-      recurrenceRule: isRecurring ? recurrenceRule : undefined,
-    });
-  };
 
-  const handleEdit = (schedule: any) => {
-    setEditingScheduleId(schedule.id);
-    setScheduleName(schedule.name);
-    setScheduleDescription(schedule.description || '');
-    setChannelId(schedule.channelId);
-    setStartTime(new Date(schedule.startTime).toISOString().slice(0, 16));
-    setEndTime(new Date(schedule.endTime).toISOString().slice(0, 16));
-    setIsRecurring(schedule.isRecurring || false);
-    setRecurrenceRule(schedule.recurrenceRule || '');
-  };
-
-  const handleUpdate = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingScheduleId || !scheduleName.trim()) {
-      toast.error('Schedule name is required');
+    if (!newItemUrl.startsWith('file://') && !newItemUrl.startsWith('stream://')) {
+      toast.error('URL must start with file:// or stream://');
       return;
     }
-    updateMutation.mutate({
-      id: editingScheduleId,
-      data: {
-        name: scheduleName.trim(),
-        description: scheduleDescription.trim() || undefined,
-        channelId,
-        startTime: startTime ? new Date(startTime).toISOString() : undefined,
-        endTime: endTime ? new Date(endTime).toISOString() : undefined,
-        isRecurring,
-        recurrenceRule: isRecurring ? recurrenceRule : undefined,
-      },
-    });
+
+    const item: { url: string; start?: number; duration?: number } = {
+      url: newItemUrl.trim(),
+    };
+
+    if (newItemStart.trim()) {
+      item.start = parseInt(newItemStart.trim());
+    }
+
+    if (newItemDuration.trim()) {
+      item.duration = parseInt(newItemDuration.trim());
+    }
+
+    setItems([...items, item]);
+    setNewItemUrl('');
+    setNewItemStart('');
+    setNewItemDuration('');
   };
 
-  const handleCancelEdit = () => {
-    setEditingScheduleId(null);
-    resetForm();
+  const removeItem = (index: number) => {
+    setItems(items.filter((_, i) => i !== index));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!channelName.trim()) {
+      toast.error('Channel name is required');
+      return;
+    }
+
+    if (items.length === 0) {
+      toast.error('At least one item is required');
+      return;
+    }
+
+    const scheduleData: any = {
+      channelName: channelName.trim(),
+      programName: programName.trim() || undefined,
+      scheduled: scheduled || undefined,
+      repeat,
+      items,
+    };
+
+    createMutation.mutate(scheduleData);
+  };
+
+  const handleEdit = (channel: any) => {
+    setEditingChannel(channel);
+    setChannelName(channel.name);
+    // Extract program info if available
+    if (channel.schedule && Array.isArray(channel.schedule) && channel.schedule.length > 0) {
+      const program = channel.schedule[0];
+      setProgramName(program.name || '');
+      setScheduled(program.scheduled || '');
+      setRepeat(program.repeat || false);
+      setItems(program.items || []);
+    }
+    setShowCreateForm(true);
   };
 
   if (isLoading) {
-    return <div>Loading...</div>;
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+          <p className="text-muted-foreground">Loading scheduled channels...</p>
+        </div>
+      </div>
+    );
   }
 
-  const canModify = user?.role === 'ADMIN' || user?.role === 'OPERATOR';
-  const channels = channelsData?.channels || [];
+  if (error) {
+    return (
+      <Card className="m-4">
+        <CardContent className="p-6">
+          <p className="text-red-600">Error loading scheduled channels: {(error as any).message || 'Unknown error'}</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
-    <div>
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Schedules</h1>
+    <div className="space-y-6 p-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold flex items-center gap-2">
+            <Calendar className="h-8 w-8" />
+            Content Schedules
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            OME Scheduled Channels - Manage VOD playlists and live stream scheduling
+          </p>
+        </div>
         {canModify && (
-          <Button onClick={() => setShowCreateForm(!showCreateForm)}>
-            {showCreateForm ? 'Cancel' : 'Create Schedule'}
+          <Button onClick={() => setShowCreateForm(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Create Scheduled Channel
           </Button>
         )}
       </div>
 
-      {showCreateForm && canModify && (
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Create New Schedule</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleCreate} className="space-y-4">
-              <div>
-                <label htmlFor="scheduleName" className="block text-sm font-medium mb-2">
-                  Schedule Name *
-                </label>
-                <Input
-                  id="scheduleName"
-                  type="text"
-                  value={scheduleName}
-                  onChange={(e) => setScheduleName(e.target.value)}
-                  placeholder="Enter schedule name"
-                  required
-                />
-              </div>
-              <div>
-                <label htmlFor="scheduleDescription" className="block text-sm font-medium mb-2">
-                  Description
-                </label>
-                <Input
-                  id="scheduleDescription"
-                  type="text"
-                  value={scheduleDescription}
-                  onChange={(e) => setScheduleDescription(e.target.value)}
-                  placeholder="Enter schedule description (optional)"
-                />
-              </div>
-              <div>
-                <label htmlFor="channelId" className="block text-sm font-medium mb-2">
-                  Channel *
-                </label>
-                <select
-                  id="channelId"
-                  value={channelId}
-                  onChange={(e) => setChannelId(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-md"
-                  required
-                >
-                  <option value="">Select a channel</option>
-                  {channels.map((channel: any) => (
-                    <option key={channel.id} value={channel.id}>
-                      {channel.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="startTime" className="block text-sm font-medium mb-2">
-                    Start Time *
-                  </label>
-                  <Input
-                    id="startTime"
-                    type="datetime-local"
-                    value={startTime}
-                    onChange={(e) => setStartTime(e.target.value)}
-                    required
-                  />
-                </div>
-                <div>
-                  <label htmlFor="endTime" className="block text-sm font-medium mb-2">
-                    End Time *
-                  </label>
-                  <Input
-                    id="endTime"
-                    type="datetime-local"
-                    value={endTime}
-                    onChange={(e) => setEndTime(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="isRecurring"
-                  checked={isRecurring}
-                  onChange={(e) => setIsRecurring(e.target.checked)}
-                  className="w-4 h-4"
-                />
-                <label htmlFor="isRecurring" className="text-sm font-medium">
-                  Recurring Schedule
-                </label>
-              </div>
-              {isRecurring && (
-                <div>
-                  <label htmlFor="recurrenceRule" className="block text-sm font-medium mb-2">
-                    Recurrence Rule (Cron format)
-                  </label>
-                  <Input
-                    id="recurrenceRule"
-                    type="text"
-                    value={recurrenceRule}
-                    onChange={(e) => setRecurrenceRule(e.target.value)}
-                    placeholder="0 0 * * * (daily at midnight)"
-                  />
-                </div>
-              )}
-              <div className="flex gap-2">
-                <Button type="submit" disabled={createMutation.isPending}>
-                  {createMutation.isPending ? 'Creating...' : 'Create Schedule'}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setShowCreateForm(false);
-                    resetForm();
-                  }}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </form>
+      {scheduledChannels.length === 0 ? (
+        <Card>
+          <CardContent className="p-12 text-center">
+            <p className="text-muted-foreground text-lg">No scheduled channels found</p>
+            <p className="text-sm text-muted-foreground mt-2">
+              Create a scheduled channel to manage VOD playlists or schedule live streams
+            </p>
           </CardContent>
         </Card>
-      )}
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>Scheduled Channels ({scheduledChannels.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Channel Name</TableHead>
+                  <TableHead>Programs</TableHead>
+                  <TableHead>Items</TableHead>
+                  <TableHead>Repeat</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {scheduledChannels.map((channel: any) => {
+                  const schedule = Array.isArray(channel.schedule) ? channel.schedule : [];
+                  const totalItems = schedule.reduce((sum: number, prog: any) => {
+                    return sum + (Array.isArray(prog.items) ? prog.items.length : 0);
+                  }, 0);
 
-      <Card>
-        <CardHeader>
-          <CardTitle>All Schedules</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Channel</TableHead>
-                <TableHead>Start Time</TableHead>
-                <TableHead>End Time</TableHead>
-                <TableHead>Recurring</TableHead>
-                <TableHead>Status</TableHead>
-                {canModify && <TableHead>Actions</TableHead>}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data?.schedules?.map((schedule: any) => (
-                <TableRow key={schedule.id}>
-                  {editingScheduleId === schedule.id ? (
-                    <>
-                      <TableCell colSpan={6}>
-                        <form onSubmit={handleUpdate} className="space-y-4">
-                          <div className="grid grid-cols-2 gap-4">
-                            <div>
-                              <label className="block text-sm font-medium mb-1">Name *</label>
-                              <Input
-                                value={scheduleName}
-                                onChange={(e) => setScheduleName(e.target.value)}
-                                required
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium mb-1">Channel *</label>
-                              <select
-                                value={channelId}
-                                onChange={(e) => setChannelId(e.target.value)}
-                                className="w-full px-3 py-2 border rounded-md"
-                                required
-                              >
-                                {channels.map((channel: any) => (
-                                  <option key={channel.id} value={channel.id}>
-                                    {channel.name}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium mb-1">Start Time *</label>
-                              <Input
-                                type="datetime-local"
-                                value={startTime}
-                                onChange={(e) => setStartTime(e.target.value)}
-                                required
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium mb-1">End Time *</label>
-                              <Input
-                                type="datetime-local"
-                                value={endTime}
-                                onChange={(e) => setEndTime(e.target.value)}
-                                required
-                              />
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="checkbox"
-                              checked={isRecurring}
-                              onChange={(e) => setIsRecurring(e.target.checked)}
-                              className="w-4 h-4"
-                            />
-                            <label className="text-sm">Recurring</label>
-                          </div>
-                          {isRecurring && (
-                            <div>
-                              <label className="block text-sm font-medium mb-1">Recurrence Rule</label>
-                              <Input
-                                value={recurrenceRule}
-                                onChange={(e) => setRecurrenceRule(e.target.value)}
-                                placeholder="Cron format"
-                              />
-                            </div>
-                          )}
-                          <div className="flex gap-2">
-                            <Button type="submit" size="sm" disabled={updateMutation.isPending}>
-                              {updateMutation.isPending ? 'Saving...' : 'Save'}
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={handleCancelEdit}
-                              disabled={updateMutation.isPending}
-                            >
-                              Cancel
-                            </Button>
-                          </div>
-                        </form>
-                      </TableCell>
-                      {canModify && <TableCell></TableCell>}
-                    </>
-                  ) : (
-                    <>
-                      <TableCell className="font-medium">{schedule.name}</TableCell>
-                      <TableCell>{schedule.channel?.name || '-'}</TableCell>
-                      <TableCell>{formatDate(schedule.startTime)}</TableCell>
-                      <TableCell>{formatDate(schedule.endTime)}</TableCell>
-                      <TableCell>{schedule.isRecurring ? 'Yes' : 'No'}</TableCell>
+                  return (
+                    <TableRow key={channel.name}>
+                      <TableCell className="font-medium">{channel.name}</TableCell>
                       <TableCell>
-                        <span
-                          className={`px-2 py-1 rounded text-xs ${
-                            schedule.isActive
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-red-100 text-red-800'
-                          }`}
-                        >
-                          {schedule.isActive ? 'Active' : 'Inactive'}
-                        </span>
+                        <Badge variant="secondary">{schedule.length}</Badge>
                       </TableCell>
-                      {canModify && (
-                        <TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{totalItems}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        {schedule.some((p: any) => p.repeat) ? (
+                          <Badge variant="default">
+                            <Repeat className="w-3 h-3 mr-1" />
+                            Yes
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground">No</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {canModify && (
                           <div className="flex gap-2">
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => handleEdit(schedule)}
-                              disabled={editingScheduleId !== null}
+                              onClick={() => handleEdit(channel)}
                             >
-                              Edit
+                              <Edit className="w-4 h-4" />
                             </Button>
                             <Button
                               variant="destructive"
                               size="sm"
-                              onClick={() => deleteMutation.mutate(schedule.id)}
-                              disabled={editingScheduleId !== null}
+                              onClick={() => {
+                                if (confirm(`Delete scheduled channel "${channel.name}"?`)) {
+                                  deleteMutation.mutate(channel.name);
+                                }
+                              }}
                             >
-                              Delete
+                              <Trash2 className="w-4 h-4" />
                             </Button>
                           </div>
-                        </TableCell>
-                      )}
-                    </>
-                  )}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Create/Edit Dialog */}
+      <Dialog open={showCreateForm} onOpenChange={setShowCreateForm}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {editingChannel ? 'Edit Scheduled Channel' : 'Create Scheduled Channel'}
+            </DialogTitle>
+            <DialogDescription>
+              Create a scheduled channel for VOD playlist management or live stream scheduling
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Channel Name *</label>
+              <Input
+                value={channelName}
+                onChange={(e) => setChannelName(e.target.value)}
+                placeholder="my-channel"
+                required
+                disabled={!!editingChannel}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">Program Name (Optional)</label>
+              <Input
+                value={programName}
+                onChange={(e) => setProgramName(e.target.value)}
+                placeholder="morning-show"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">Scheduled Time (Optional)</label>
+              <Input
+                type="datetime-local"
+                value={scheduled}
+                onChange={(e) => setScheduled(e.target.value)}
+              />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="repeat"
+                checked={repeat}
+                onChange={(e) => setRepeat(e.target.checked)}
+                className="rounded"
+              />
+              <label htmlFor="repeat" className="text-sm font-medium">
+                Repeat Program
+              </label>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-sm font-medium">Items (file:// or stream:// URLs) *</label>
+              <div className="flex gap-2">
+                <Input
+                  value={newItemUrl}
+                  onChange={(e) => setNewItemUrl(e.target.value)}
+                  placeholder="file:///path/to/video.mp4 or stream://app/stream"
+                  className="flex-1"
+                />
+                <Input
+                  type="number"
+                  value={newItemStart}
+                  onChange={(e) => setNewItemStart(e.target.value)}
+                  placeholder="Start (sec)"
+                  className="w-24"
+                />
+                <Input
+                  type="number"
+                  value={newItemDuration}
+                  onChange={(e) => setNewItemDuration(e.target.value)}
+                  placeholder="Duration (sec)"
+                  className="w-24"
+                />
+                <Button type="button" onClick={addItem} variant="outline">
+                  <Plus className="w-4 h-4" />
+                </Button>
+              </div>
+
+              {items.length > 0 && (
+                <div className="border rounded-md p-2 space-y-1 max-h-40 overflow-y-auto">
+                  {items.map((item, index) => (
+                    <div key={index} className="flex items-center justify-between text-sm bg-muted p-2 rounded">
+                      <span className="truncate flex-1">{item.url}</span>
+                      {item.start !== undefined && <span className="mx-2 text-muted-foreground">Start: {item.start}s</span>}
+                      {item.duration !== undefined && <span className="mx-2 text-muted-foreground">Duration: {item.duration}s</span>}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeItem(index)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setShowCreateForm(false);
+                  resetForm();
+                  setEditingChannel(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={createMutation.isPending}>
+                {editingChannel ? 'Update' : 'Create'} Scheduled Channel
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
-

@@ -51,6 +51,7 @@ export function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 placeholder="email@example.com"
+                autoComplete="email"
               />
             </div>
             <div>
@@ -64,6 +65,7 @@ export function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 placeholder="••••••••"
+                autoComplete="current-password"
               />
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
