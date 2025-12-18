@@ -56,35 +56,37 @@ export function OvenPlayer({
   useEffect(() => {
     if (scriptLoadedRef.current) return;
 
-    const script = document.createElement('script');
-    // Use same-origin script to avoid CSP issues in hardened deployments.
-    script.src = '/ovenplayer.js';
-    script.async = true;
-    script.onload = () => {
-      scriptLoadedRef.current = true;
-      setIsLoading(false);
-    };
-    script.onerror = () => {
-      setError('Failed to load OvenPlayer script');
-      setIsLoading(false);
-      if (onError) {
-        onError(new Error('OvenPlayer script failed to load'));
+    // OvenPlayer's HLS provider expects global `Hls` (hls.js) to be loaded.
+    const ensureScript = (src: string) =>
+      new Promise<void>((resolve, reject) => {
+        // If already present, skip.
+        const existing = document.querySelector(`script[src="${src}"]`);
+        if (existing) return resolve();
+
+        const s = document.createElement('script');
+        s.src = src;
+        s.async = true;
+        s.onload = () => resolve();
+        s.onerror = () => reject(new Error(`Failed to load script: ${src}`));
+        document.head.appendChild(s);
+      });
+
+    (async () => {
+      try {
+        // Same-origin scripts to avoid CSP issues
+        await ensureScript('/hls.min.js');
+        await ensureScript('/ovenplayer.js');
+        scriptLoadedRef.current = true;
+        setIsLoading(false);
+      } catch (e: any) {
+        setError(e?.message || 'Failed to load player scripts');
+        setIsLoading(false);
+        onError?.(e);
       }
-    };
-    document.head.appendChild(script);
+    })();
 
     return () => {
-      // Cleanup script if component unmounts before loading
-      if (!scriptLoadedRef.current) {
-        // Guard: avoid NotFoundError if something else already removed the script tag
-        try {
-          if (script.parentNode === document.head) {
-            document.head.removeChild(script);
-          }
-        } catch {
-          // ignore
-        }
-      }
+      // No script tag cleanup: scripts are shared across the app and safe to keep cached.
     };
   }, [onError]);
 
