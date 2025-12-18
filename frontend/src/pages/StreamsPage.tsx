@@ -35,15 +35,6 @@ const formatBitrate = (bps: number): string => {
 
 const OME_HOST = (import.meta.env.VITE_OME_HOST as string) || 'ome.imagetv.in';
 
-const getOmePublicBase = (): string => {
-  // If the dashboard is served over HTTPS, avoid mixed content by using a same-origin proxy path.
-  // Nginx should proxy `/ome/` to OME origin (typically http://127.0.0.1:3333/).
-  if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
-    return `${window.location.origin}/ome`;
-  }
-  return `http://${OME_HOST}:3333`;
-};
-
 // Thumbnails are optional in OME and commonly return 404 unless explicitly enabled.
 // To avoid noisy browser console errors, we don't request thumbnails by default.
 function StreamThumbnailPlaceholder() {
@@ -299,8 +290,7 @@ export function StreamsPage() {
               const inputUrl = inputSource 
                 ? `rtmp://${OME_HOST}:1935/${stream.appName || 'app'}/${stream.name}`
                 : 'N/A';
-              const omeBase = getOmePublicBase();
-              const thumbnailUrl = `${omeBase}/${stream.appName || 'app'}/${stream.name}/thumbnail`;
+              // Thumbnails are disabled by default (optional feature in OME and often 404).
               const isPlaying = playingStream?.streamName === stream.name;
 
               return (
