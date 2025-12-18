@@ -145,7 +145,8 @@ export function OvenPlayer({
           autoFallback: true,
           timecode: true,
           controls: true,
-          mute: false,
+          // Allow autoplay in modern browsers
+          mute: true,
           autoplay: true,
           webrtcConfig: {
             timeoutMaxRetry: 3,
