@@ -52,6 +52,7 @@ export function HlsVideoPlayer({ src, className = '', muted = true, autoPlay = t
 
     let cancelled = false;
     let hls: any = null;
+    let mediaRecoverAttempts = 0;
 
     (async () => {
       try {
@@ -76,14 +77,16 @@ export function HlsVideoPlayer({ src, className = '', muted = true, autoPlay = t
           // ignore
         }
 
-        // Enable low-latency mode only for LLHLS manifests; keep standard HLS in normal mode.
-        const isLL = src.includes('llhls.m3u8') || src.includes('_llhls');
         hls = new Hls({
-          lowLatencyMode: isLL,
+          // OME LLHLS manifests work fine in normal mode; lowLatencyMode has caused
+          // `bufferAppendError` / unstable playback in some browsers.
+          lowLatencyMode: false,
           enableWorker: true,
-          backBufferLength: 0,
-          liveSyncDuration: 3,
-          maxBufferLength: 10,
+          backBufferLength: 30,
+          liveSyncDurationCount: 3,
+          maxBufferLength: 30,
+          // Be a bit more tolerant for live streams
+          maxBufferHole: 1.0,
         });
 
         hls.attachMedia(video);
@@ -92,16 +95,27 @@ export function HlsVideoPlayer({ src, className = '', muted = true, autoPlay = t
         });
 
         hls.on(Hls.Events.ERROR, (_evt: any, data: any) => {
-          // Surface fatal errors only; non-fatal are retried internally
-          if (data?.fatal) {
-            const reason = data?.details || data?.type || 'HLS error';
-            if (!cancelled) setError(reason);
-            onFatalError?.(reason);
+          // Non-fatal errors are retried internally by hls.js.
+          if (!data?.fatal) return;
+
+          // Try to recover from MEDIA_ERROR (commonly emitted as bufferAppendError).
+          if (data?.type === Hls.ErrorTypes?.MEDIA_ERROR && mediaRecoverAttempts < 2) {
+            mediaRecoverAttempts += 1;
             try {
-              hls.destroy();
+              hls.recoverMediaError();
+              return;
             } catch {
-              // ignore
+              // fall through to fatal handling
             }
+          }
+
+          const reason = data?.details || data?.type || 'HLS error';
+          if (!cancelled) setError(reason);
+          onFatalError?.(reason);
+          try {
+            hls.destroy();
+          } catch {
+            // ignore
           }
         });
 
