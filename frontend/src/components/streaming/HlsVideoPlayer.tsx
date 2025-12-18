@@ -56,7 +56,7 @@ export function HlsVideoPlayer({ src, className = '', muted = true, autoPlay = t
       try {
         // Make sure hls.js is present even if OvenPlayer isn't mounted
         if (!window.Hls) {
-          await ensureScript('/hls.min.js?v=2');
+          await ensureScript('/hls.min.js?v=3');
         }
 
         const Hls = window.Hls;
@@ -76,9 +76,12 @@ export function HlsVideoPlayer({ src, className = '', muted = true, autoPlay = t
         }
 
         hls = new Hls({
+          // Low-latency tuning for LLHLS
+          lowLatencyMode: true,
+          enableWorker: true,
+          backBufferLength: 0,
           liveSyncDuration: 3,
           maxBufferLength: 10,
-          lowLatencyMode: true,
         });
 
         hls.attachMedia(video);
