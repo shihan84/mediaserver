@@ -23,6 +23,18 @@ export function HlsVideoPlayer({ src, className = '', muted = true, autoPlay = t
 
     setError(null);
 
+    const ensureScript = (scriptSrc: string) =>
+      new Promise<void>((resolve, reject) => {
+        const existing = document.querySelector(`script[src="${scriptSrc}"]`);
+        if (existing) return resolve();
+        const s = document.createElement('script');
+        s.src = scriptSrc;
+        s.async = true;
+        s.onload = () => resolve();
+        s.onerror = () => reject(new Error(`Failed to load script: ${scriptSrc}`));
+        document.head.appendChild(s);
+      });
+
     // Native HLS (Safari)
     if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = src;
@@ -34,45 +46,60 @@ export function HlsVideoPlayer({ src, className = '', muted = true, autoPlay = t
       return;
     }
 
-    const Hls = window.Hls;
-    if (!Hls || typeof Hls.isSupported !== 'function' || !Hls.isSupported()) {
-      setError('HLS is not supported in this browser.');
-      return;
-    }
+    let cancelled = false;
+    let hls: any = null;
 
-    const hls = new Hls({
-      liveSyncDuration: 3,
-      maxBufferLength: 10,
-      lowLatencyMode: true,
-    });
-
-    hls.attachMedia(video);
-    hls.on(Hls.Events.MEDIA_ATTACHED, () => {
-      hls.loadSource(src);
-    });
-
-    hls.on(Hls.Events.ERROR, (_evt: any, data: any) => {
-      // Surface fatal errors only; non-fatal are retried internally
-      if (data?.fatal) {
-        setError(data?.details || data?.type || 'HLS error');
-        try {
-          hls.destroy();
-        } catch {
-          // ignore
+    (async () => {
+      try {
+        // Make sure hls.js is present even if OvenPlayer isn't mounted
+        if (!window.Hls) {
+          await ensureScript('/hls.min.js?v=2');
         }
-      }
-    });
 
-    // Autoplay attempt
-    if (autoPlay) {
-      video.play().catch(() => {
-        // autoplay might be blocked; user gesture will be required
-      });
-    }
+        const Hls = window.Hls;
+        if (!Hls || typeof Hls.isSupported !== 'function' || !Hls.isSupported()) {
+          if (!cancelled) setError('HLS is not supported in this browser.');
+          return;
+        }
+
+        hls = new Hls({
+          liveSyncDuration: 3,
+          maxBufferLength: 10,
+          lowLatencyMode: true,
+        });
+
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MEDIA_ATTACHED, () => {
+          hls.loadSource(src);
+        });
+
+        hls.on(Hls.Events.ERROR, (_evt: any, data: any) => {
+          // Surface fatal errors only; non-fatal are retried internally
+          if (data?.fatal) {
+            if (!cancelled) setError(data?.details || data?.type || 'HLS error');
+            try {
+              hls.destroy();
+            } catch {
+              // ignore
+            }
+          }
+        });
+
+        // Autoplay attempt
+        if (autoPlay) {
+          video.play().catch(() => {
+            // autoplay might be blocked; user gesture will be required
+          });
+        }
+      } catch (e: any) {
+        if (!cancelled) setError(e?.message || 'Failed to initialize HLS');
+      }
+    })();
 
     return () => {
+      cancelled = true;
       try {
-        hls.destroy();
+        if (hls) hls.destroy();
       } catch {
         // ignore
       }

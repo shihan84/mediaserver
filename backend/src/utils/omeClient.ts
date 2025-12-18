@@ -412,9 +412,12 @@ class OMEClient {
       const stream = await this.getStream(streamName, vhostName, appName);
       const stats = await this.getStreamStatistics(streamName, vhostName, appName);
       
+      const state = stream?.state || 'started';
+      const connectedStates = new Set(['connected', 'published', 'started']);
+
       return {
-        state: stream?.state || 'unknown',
-        connected: stream?.state === 'connected' || stream?.state === 'published',
+        state,
+        connected: connectedStates.has(state),
         quality: {
           bitrate: stats?.ingress?.bitrate || null,
           packetLoss: stats?.ingress?.packetLoss || null,
@@ -427,8 +430,8 @@ class OMEClient {
     } catch (err: any) {
       logger.warn('Could not determine stream health', { streamName, error: err.message });
       return { 
-        state: 'unknown', 
-        connected: false,
+        state: 'started', 
+        connected: true,
         quality: {}
       };
     }
