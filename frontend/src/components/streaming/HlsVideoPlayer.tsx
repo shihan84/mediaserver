@@ -81,12 +81,15 @@ export function HlsVideoPlayer({ src, className = '', muted = true, autoPlay = t
           // OME LLHLS manifests work fine in normal mode; lowLatencyMode has caused
           // `bufferAppendError` / unstable playback in some browsers.
           lowLatencyMode: false,
-          enableWorker: true,
+          // Worker mode can make debugging harder and has shown flaky behavior with some CMAF streams.
+          enableWorker: false,
           backBufferLength: 30,
           liveSyncDurationCount: 3,
           maxBufferLength: 30,
           // Be a bit more tolerant for live streams
           maxBufferHole: 1.0,
+          // Retry appends a little more aggressively for live CMAF
+          appendErrorMaxRetry: 5,
         });
 
         hls.attachMedia(video);
@@ -102,6 +105,11 @@ export function HlsVideoPlayer({ src, className = '', muted = true, autoPlay = t
           if (data?.type === Hls.ErrorTypes?.MEDIA_ERROR && mediaRecoverAttempts < 2) {
             mediaRecoverAttempts += 1;
             try {
+              // Recommended recovery pattern for append/buffer issues:
+              // swapAudioCodec (for AAC) + recoverMediaError
+              if (typeof hls.swapAudioCodec === 'function') {
+                hls.swapAudioCodec();
+              }
               hls.recoverMediaError();
               return;
             } catch {
