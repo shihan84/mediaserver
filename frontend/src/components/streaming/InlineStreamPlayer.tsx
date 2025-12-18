@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { streamsApi } from '../../lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
@@ -55,18 +55,24 @@ export function InlineStreamPlayer({ streamName, appName, channel, onStreamChang
 
   // This deployment consistently serves LLHLS; the legacy HLS playlist path can be unreliable.
   // Prefer LLHLS only to avoid "error initializing hls" in OvenPlayer.
-  const playerSources = outputs ? [
-    ...(getSourceUrl('llhls') ? [{
-      type: 'llhls' as const,
-      file: getSourceUrl('llhls')!,
-      label: selectedQuality !== 'auto' ? `LLHLS - ${selectedQuality}` : 'LLHLS (Low Latency HLS)'
-    }] : []),
-    ...(outputs.webrtc ? [{
-      type: 'webrtc' as const,
-      file: outputs.webrtc,
-      label: 'WebRTC (Low Latency)'
-    }] : []),
-  ].filter(Boolean) : [];
+  const playerSources = useMemo(() => {
+    if (!outputs) return [];
+    const llhls = getSourceUrl('llhls');
+    const webrtc = outputs.webrtc;
+    return [
+      ...(llhls ? [{
+        type: 'llhls' as const,
+        file: llhls,
+        label: selectedQuality !== 'auto' ? `LLHLS - ${selectedQuality}` : 'LLHLS (Low Latency HLS)'
+      }] : []),
+      ...(webrtc ? [{
+        type: 'webrtc' as const,
+        file: webrtc,
+        label: 'WebRTC (Low Latency)'
+      }] : []),
+    ];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [outputs?.webrtc, outputs?.llhls, outputs?.profiles, selectedQuality]);
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);

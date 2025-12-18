@@ -55,6 +55,10 @@ export function OvenPlayer({
   const [error, setError] = useState<string | null>(null);
   const [isPlayerReady, setIsPlayerReady] = useState(false);
 
+  // Only re-create OvenPlayer when the actual source URLs/types change,
+  // not on every re-render/refetch that produces a new array identity.
+  const sourcesKey = sources.map((s) => `${s.type}:${s.file}`).join('|');
+
   // Load OvenPlayer script
   useEffect(() => {
     if (scriptLoadedRef.current) return;
@@ -366,7 +370,7 @@ export function OvenPlayer({
           currentPlayerInstance = null;
         }
       };
-  }, [sources, onError, onReady]);
+  }, [sourcesKey, onError, onReady]);
 
   if (error) {
     return (
@@ -383,7 +387,7 @@ export function OvenPlayer({
     <div className={`relative bg-black rounded-lg overflow-hidden aspect-video ${className}`}>
       {/* Prevent OvenPlayer internal null deref crashes if user clicks before player is ready */}
       {!isPlayerReady && (
-        <div className="absolute inset-0 z-20" style={{ pointerEvents: 'auto' }} />
+        <div className="absolute inset-0 z-50" style={{ pointerEvents: 'auto' }} />
       )}
       {isLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10">
@@ -393,7 +397,11 @@ export function OvenPlayer({
           </div>
         </div>
       )}
-      <div ref={playerRef} className="w-full h-full" />
+      <div
+        ref={playerRef}
+        className="w-full h-full"
+        style={!isPlayerReady ? { pointerEvents: 'none' } : undefined}
+      />
     </div>
   );
 }
