@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query';
 import { streamsApi } from '../../lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
-import { OvenPlayer } from './OvenPlayer';
 import { HlsVideoPlayer } from './HlsVideoPlayer';
 import { Copy, Monitor, Users, Activity, Radio, CheckCircle, XCircle, Video, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -18,7 +17,6 @@ interface InlineStreamPlayerProps {
 
 export function InlineStreamPlayer({ streamName, appName, channel, onStreamChange }: InlineStreamPlayerProps) {
   const [selectedQuality, setSelectedQuality] = useState<string>('auto');
-  const [forceWebrtc, setForceWebrtc] = useState(false);
 
   // Fetch stream details
   const { data: streamData, isLoading } = useQuery({
@@ -55,8 +53,7 @@ export function InlineStreamPlayer({ streamName, appName, channel, onStreamChang
     return null;
   };
 
-  // This deployment consistently serves LLHLS; the legacy HLS playlist path can be unreliable.
-  // Prefer LLHLS only to avoid "error initializing hls" in OvenPlayer.
+  // Player source ordering is used for labels/URL display only. Playback uses HlsVideoPlayer.
   const playerSources = useMemo(() => {
     if (!outputs) return [];
     const llhls = getSourceUrl('llhls');
@@ -169,31 +166,23 @@ export function InlineStreamPlayer({ streamName, appName, channel, onStreamChang
               {playerSources.length > 0 ? (
                 <div className="space-y-3">
                   <div className="relative w-full bg-black rounded-lg overflow-hidden" style={{ aspectRatio: '16/9' }}>
-                    {/* Prefer standard HLS (playlist.m3u8) for max compatibility; fallback to LLHLS */}
-                    {(getSourceUrl('hls') || getSourceUrl('llhls')) && !forceWebrtc ? (
+                    {/* Single-player approach: always use <video> + hls.js for playback.
+                        WebRTC is exposed as a URL (copy) rather than embedding OvenPlayer, since OvenPlayer has
+                        proven unstable in this environment (null deref on click/hover). */}
+                    {(getSourceUrl('hls') || getSourceUrl('llhls')) ? (
                       <HlsVideoPlayer
                         src={(getSourceUrl('hls') || getSourceUrl('llhls'))!}
                         className="w-full h-full"
                         muted
                         autoPlay
                         onFatalError={() => {
-                          // HLS/LLHLS can fail on some browsers (e.g. bufferAppendError). Fall back to WebRTC.
-                          if (outputs?.webrtc) setForceWebrtc(true);
+                          toast.error('HLS playback failed. Try again or use WebRTC output URL.');
                         }}
                       />
                     ) : (
-                      <OvenPlayer
-                        sources={outputs?.webrtc ? [{
-                          type: 'webrtc' as const,
-                          file: outputs.webrtc,
-                          label: 'WebRTC (Low Latency)'
-                        }] : playerSources}
-                        className="w-full h-full"
-                        controls={false}
-                        onError={(err) => {
-                          toast.error(err.message || 'Failed to load stream');
-                        }}
-                      />
+                      <div className="flex items-center justify-center w-full h-full text-white/80">
+                        No HLS output available
+                      </div>
                     )}
                   </div>
 
