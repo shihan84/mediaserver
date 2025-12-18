@@ -69,6 +69,10 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response, next) => {
 router.get('/:streamName', authenticate, async (req: AuthRequest, res: Response, next) => {
   try {
     const { streamName } = req.params;
+    const requestedAppName =
+      typeof req.query.appName === 'string' && req.query.appName.trim().length > 0
+        ? req.query.appName.trim()
+        : undefined;
     
     // Find channel by streamKey to get appName FIRST (before fetching stream)
     let channelAppName: string | undefined;
@@ -84,10 +88,15 @@ router.get('/:streamName', authenticate, async (req: AuthRequest, res: Response,
 
     // Try to get stream with the correct appName
     let stream = null;
-    let foundAppName = channelAppName || 'app';
+    let foundAppName = requestedAppName || channelAppName || 'app';
     
     // Try multiple apps if stream not found
-    const appsToTry = channelAppName ? [channelAppName, 'app', 'live'] : ['app', 'live'];
+    const appsToTry = [
+      ...(requestedAppName ? [requestedAppName] : []),
+      ...(channelAppName ? [channelAppName] : []),
+      'app',
+      'live',
+    ].filter((v, i, arr) => !!v && arr.indexOf(v) === i);
     
     for (const appName of appsToTry) {
       try {

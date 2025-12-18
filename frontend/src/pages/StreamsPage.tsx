@@ -37,7 +37,7 @@ const OME_HOST = (import.meta.env.VITE_OME_HOST as string) || 'ome.imagetv.in';
 
 export function StreamsPage() {
   const [selectedStream, setSelectedStream] = useState<{ streamName: string; channel?: any } | null>(null);
-  const [playingStream, setPlayingStream] = useState<{ streamName: string; channel?: any } | null>(null);
+  const [playingStream, setPlayingStream] = useState<{ streamName: string; appName?: string; channel?: any } | null>(null);
   const [showCreateGuide, setShowCreateGuide] = useState(false);
   const [debugInfo, setDebugInfo] = useState<any>(null);
 
@@ -80,6 +80,7 @@ export function StreamsPage() {
       const firstStream = streams[0];
       setPlayingStream({
         streamName: firstStream.name,
+        appName: firstStream.appName,
         channel: firstStream.matchedChannel
       });
     }
@@ -220,6 +221,7 @@ export function StreamsPage() {
                     if (stream) {
                       setPlayingStream({
                         streamName: stream.name,
+                        appName: stream.appName,
                         channel: stream.matchedChannel
                       });
                     }
@@ -238,6 +240,7 @@ export function StreamsPage() {
           <CardContent className="p-0">
             <InlineStreamPlayer
               streamName={playingStream.streamName}
+              appName={playingStream.appName}
               channel={playingStream.channel}
               onStreamChange={(streamName) => {
                 if (!streamName) {
@@ -313,7 +316,7 @@ export function StreamsPage() {
                   <CardContent className="space-y-4">
                     {/* Stream Thumbnail */}
                     <div className="relative bg-black rounded-md overflow-hidden aspect-video cursor-pointer group"
-                      onClick={() => setPlayingStream({ streamName: stream.name, channel: stream.matchedChannel })}
+                      onClick={() => setPlayingStream({ streamName: stream.name, appName: stream.appName, channel: stream.matchedChannel })}
                     >
                       <img
                         src={thumbnailUrl}
@@ -362,7 +365,7 @@ export function StreamsPage() {
                         variant={isPlaying ? 'default' : 'outline'}
                         size="sm"
                         className="flex-1"
-                        onClick={() => setPlayingStream({ streamName: stream.name, channel: stream.matchedChannel })}
+                        onClick={() => setPlayingStream({ streamName: stream.name, appName: stream.appName, channel: stream.matchedChannel })}
                       >
                         <Play className="w-4 h-4 mr-2" />
                         {isPlaying ? 'Playing' : 'Preview'}

@@ -10,19 +10,20 @@ import { formatDistanceToNow } from 'date-fns';
 
 interface InlineStreamPlayerProps {
   streamName: string | null;
+  appName?: string | null;
   channel?: any;
   onStreamChange?: (streamName: string | null) => void;
 }
 
-export function InlineStreamPlayer({ streamName, channel, onStreamChange }: InlineStreamPlayerProps) {
+export function InlineStreamPlayer({ streamName, appName, channel, onStreamChange }: InlineStreamPlayerProps) {
   const [selectedQuality, setSelectedQuality] = useState<string>('auto');
 
   // Fetch stream details
   const { data: streamData, isLoading } = useQuery({
-    queryKey: ['stream-details', streamName],
+    queryKey: ['stream-details', streamName, appName],
     queryFn: async () => {
       if (!streamName) return null;
-      const response = await streamsApi.getById(streamName);
+      const response = await streamsApi.getById(streamName, appName || undefined);
       return response.data;
     },
     enabled: !!streamName,

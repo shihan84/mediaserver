@@ -98,7 +98,8 @@ export const scte35Api = {
 
 export const streamsApi = {
   getAll: () => api.get('/streams'),
-  getById: (streamName: string) => api.get(`/streams/${streamName}`),
+  getById: (streamName: string, appName?: string) =>
+    api.get(`/streams/${streamName}`, { params: appName ? { appName } : undefined }),
   getOutputs: (streamName: string) => api.get(`/streams/${streamName}/outputs`),
   getStats: (streamName: string) => api.get(`/streams/${streamName}/stats`),
   getTracks: (streamName: string) => api.get(`/streams/${streamName}/tracks`),
