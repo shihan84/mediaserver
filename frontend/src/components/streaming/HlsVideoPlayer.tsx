@@ -11,9 +11,10 @@ type Props = {
   className?: string;
   muted?: boolean;
   autoPlay?: boolean;
+  onFatalError?: (reason: string) => void;
 };
 
-export function HlsVideoPlayer({ src, className = '', muted = true, autoPlay = true }: Props) {
+export function HlsVideoPlayer({ src, className = '', muted = true, autoPlay = true, onFatalError }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -92,7 +93,9 @@ export function HlsVideoPlayer({ src, className = '', muted = true, autoPlay = t
         hls.on(Hls.Events.ERROR, (_evt: any, data: any) => {
           // Surface fatal errors only; non-fatal are retried internally
           if (data?.fatal) {
-            if (!cancelled) setError(data?.details || data?.type || 'HLS error');
+            const reason = data?.details || data?.type || 'HLS error';
+            if (!cancelled) setError(reason);
+            onFatalError?.(reason);
             try {
               hls.destroy();
             } catch {

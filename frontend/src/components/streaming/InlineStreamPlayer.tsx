@@ -18,6 +18,7 @@ interface InlineStreamPlayerProps {
 
 export function InlineStreamPlayer({ streamName, appName, channel, onStreamChange }: InlineStreamPlayerProps) {
   const [selectedQuality, setSelectedQuality] = useState<string>('auto');
+  const [forceWebrtc, setForceWebrtc] = useState(false);
 
   // Fetch stream details
   const { data: streamData, isLoading } = useQuery({
@@ -168,16 +169,24 @@ export function InlineStreamPlayer({ streamName, appName, channel, onStreamChang
               {playerSources.length > 0 ? (
                 <div className="space-y-3">
                   <div className="relative w-full bg-black rounded-lg overflow-hidden" style={{ aspectRatio: '16/9' }}>
-                    {getSourceUrl('llhls') ? (
+                    {getSourceUrl('llhls') && !forceWebrtc ? (
                       <HlsVideoPlayer
                         src={getSourceUrl('llhls')!}
                         className="w-full h-full"
                         muted
                         autoPlay
+                        onFatalError={() => {
+                          // LLHLS can fail on some browsers (e.g. bufferAppendError). Fall back to WebRTC.
+                          if (outputs?.webrtc) setForceWebrtc(true);
+                        }}
                       />
                     ) : (
                       <OvenPlayer
-                        sources={playerSources}
+                        sources={outputs?.webrtc ? [{
+                          type: 'webrtc' as const,
+                          file: outputs.webrtc,
+                          label: 'WebRTC (Low Latency)'
+                        }] : playerSources}
                         className="w-full h-full"
                         controls={false}
                         onError={(err) => {
