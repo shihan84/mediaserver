@@ -44,6 +44,51 @@ const getOmePublicBase = (): string => {
   return `http://${OME_HOST}:3333`;
 };
 
+// Cache thumbnail availability checks so we don't spam HEAD requests while rendering lists.
+const thumbnailAvailabilityCache = new Map<string, boolean>();
+
+function StreamThumbnail({ url, alt }: { url: string; alt: string }) {
+  const [isAvailable, setIsAvailable] = useState<boolean>(() => {
+    const cached = thumbnailAvailabilityCache.get(url);
+    return cached === true; // default false if unknown
+  });
+
+  useEffect(() => {
+    const cached = thumbnailAvailabilityCache.get(url);
+    if (cached !== undefined) {
+      setIsAvailable(cached);
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(url, { method: 'HEAD' });
+        const ok = res.ok;
+        thumbnailAvailabilityCache.set(url, ok);
+        if (!cancelled) setIsAvailable(ok);
+      } catch {
+        thumbnailAvailabilityCache.set(url, false);
+        if (!cancelled) setIsAvailable(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [url]);
+
+  if (!isAvailable) return null;
+  return (
+    <img
+      src={url}
+      alt={alt}
+      className="w-full h-full object-cover group-hover:opacity-80 transition-opacity"
+      loading="lazy"
+    />
+  );
+}
+
 export function StreamsPage() {
   const [selectedStream, setSelectedStream] = useState<{ streamName: string; channel?: any } | null>(null);
   const [playingStream, setPlayingStream] = useState<{ streamName: string; appName?: string; channel?: any } | null>(null);
@@ -328,14 +373,7 @@ export function StreamsPage() {
                     <div className="relative bg-black rounded-md overflow-hidden aspect-video cursor-pointer group"
                       onClick={() => setPlayingStream({ streamName: stream.name, appName: stream.appName, channel: stream.matchedChannel })}
                     >
-                      <img
-                        src={thumbnailUrl}
-                        alt={stream.name}
-                        className="w-full h-full object-cover group-hover:opacity-80 transition-opacity"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).style.display = 'none';
-                        }}
-                      />
+                      <StreamThumbnail url={thumbnailUrl} alt={stream.name} />
                       <div className="absolute inset-0 flex items-center justify-center bg-black/50 group-hover:bg-black/30 transition-colors">
                         <div className="text-white text-center">
                           <Play className="w-8 h-8 mx-auto mb-2 opacity-75 group-hover:opacity-100 transition-opacity" />
