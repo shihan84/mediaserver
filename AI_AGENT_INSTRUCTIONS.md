@@ -6,6 +6,57 @@
 
 ---
 
+## 🧭 AI CONTINUITY / HANDOFF PROTOCOL (REQUIRED)
+
+This repo is frequently worked on across **multiple chat sessions / agents**. To avoid re-discovery and regressions, every agent must keep a **high-fidelity handoff trail**.
+
+### What to update (every meaningful change)
+- **`AI_AGENT_INSTRUCTIONS.md`**: keep the running “what happened + what next” narrative and the **Session Handoff Summary** below.
+- **`CURRENT_IMPLEMENTATION_STATUS.md`**: keep the authoritative feature coverage + gaps list aligned with reality.
+- **`FIXES_SUMMARY.md`** (or a new `FIXES_SUMMARY_*.md` if unrelated): record concrete bugfixes with before/after behavior and touched files.
+
+### Session Handoff Summary (copy/paste template)
+Fill this out **at the end of each session** (or any time you’re about to switch chats/agents).
+
+**Session Date:** YYYY-MM-DD  
+**Agent/Chat:** (optional)  
+**Branch / Commit(s):** `git log --oneline -5` (paste key SHAs)  
+
+**Goal(s) this session**
+- …
+
+**What changed (high level)**
+- …
+
+**Files touched (high signal only)**
+- …
+
+**Current state**
+- **Working tree**: clean / dirty (include `git status -sb`)
+- **Services**: backend running? frontend deployed? OME running?
+
+**How to verify (exact steps)**
+- Backend: …
+- Frontend: …
+- UI path(s): …
+
+**Known issues / risks**
+- …
+
+**Open questions / decisions needed**
+- …
+
+**Next steps (ordered)**
+1. …
+2. …
+
+### Fast “resume work” checklist (new chat / new agent)
+1. Read **this file** top-to-bottom.
+2. Read **`CURRENT_IMPLEMENTATION_STATUS.md`** for the authoritative roadmap/gaps.
+3. Skim **recent commits**: `git log --oneline -10`
+4. Confirm **working tree**: `git status -sb`
+5. Continue from the most recent **“Next Steps”** section in this file.
+
 ## 🎯 CURRENT CONTEXT
 
 ### Project Overview
@@ -409,8 +460,9 @@ All high-priority missing OME REST APIs have been implemented. This increases ou
 If resuming work in a new chat session:
 
 1. **Read this file first** to understand current state
-2. **Check progress tracking** section for what was completed
-3. **Review active tasks** to see what's in progress
+2. **Read the “AI CONTINUITY / HANDOFF PROTOCOL”** and locate the latest **Session Handoff Summary**
+3. **Check progress tracking** section for what was completed
+4. **Review active tasks** to see what's in progress
 4. **Check git status** for recent changes: `git status`
 5. **Review recent files** modified in last session
 6. **Continue from "Next Steps"** in progress tracking
