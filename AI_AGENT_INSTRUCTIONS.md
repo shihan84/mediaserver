@@ -87,7 +87,7 @@ Fill this out **at the end of each session** (or any time you’re about to swit
 
 **Next steps (ordered)**
 1. If preview still fails, capture browser console + Network response for `GET /api/streams/<streamName>?appName=<appName>`.
-2. If mixed-content is the issue, align `CORS_ORIGIN` / `OME_USE_HTTPS` / reverse-proxy so outputs are HTTPS/WSS.
+2. If mixed-content is the issue (HTTPS dashboard + OME outputs on HTTP :3333), proxy OME outputs under same origin (recommended `/ome/`) and set `OME_PUBLIC_BASE_PATH=/ome`.
 
 ### Fast “resume work” checklist (new chat / new agent)
 1. Read **this file** top-to-bottom.

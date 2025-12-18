@@ -68,3 +68,26 @@ All fixes are deployed! 🎉
 ## Expected Result
 - ✅ If you are streaming to `rtmp://<host>:1935/<appName>/<streamKey>`, the Streams page preview loads reliably for that exact `<appName>`.
 
+---
+
+# Fixes Summary - HTTPS Mixed Content Blocking Preview (OME :3333)
+
+## ✅ Issue Fixed (Code + Deployment Guidance)
+
+### **HTTPS dashboard blocks preview because OME outputs are HTTP**
+**Problem**: The dashboard is served over `https://...` but thumbnails/HLS/WebRTC signaling were requested from `http://<host>:3333/...` or `wss://<host>:3333/...`. Browsers block/upgrade mixed content, and because port `3333` is not serving TLS, requests fail (`ERR_CONNECTION_CLOSED`, WebSocket failures).
+
+**Solution**:
+- Added `OME_PUBLIC_BASE_PATH` support to `backend/src/services/outputUrlService.ts` so output URLs can be generated under a same-origin proxy path like `/ome`.
+- Updated Streams grid thumbnail URL generation to use `https://<origin>/ome/...` when the page is HTTPS.
+- Added `nginx-config-ome-proxy-example.conf` with an example `location /ome/ { proxy_pass http://127.0.0.1:3333/; }` so OME outputs are reachable via HTTPS on the same origin.
+
+## Files Changed
+- `backend/src/services/outputUrlService.ts`
+- `frontend/src/pages/StreamsPage.tsx`
+- `nginx-config-ome-proxy-example.conf`
+
+## Deployment Notes
+- Configure nginx to proxy `/ome/` → `http://127.0.0.1:3333/` (OME HTTP output port).
+- Set `OME_PUBLIC_BASE_PATH=/ome` for the backend so generated output URLs match the proxy path.
+
