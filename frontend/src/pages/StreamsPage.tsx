@@ -44,48 +44,11 @@ const getOmePublicBase = (): string => {
   return `http://${OME_HOST}:3333`;
 };
 
-// Cache thumbnail availability checks so we don't spam HEAD requests while rendering lists.
-const thumbnailAvailabilityCache = new Map<string, boolean>();
-
-function StreamThumbnail({ url, alt }: { url: string; alt: string }) {
-  const [isAvailable, setIsAvailable] = useState<boolean>(() => {
-    const cached = thumbnailAvailabilityCache.get(url);
-    return cached === true; // default false if unknown
-  });
-
-  useEffect(() => {
-    const cached = thumbnailAvailabilityCache.get(url);
-    if (cached !== undefined) {
-      setIsAvailable(cached);
-      return;
-    }
-
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(url, { method: 'HEAD' });
-        const ok = res.ok;
-        thumbnailAvailabilityCache.set(url, ok);
-        if (!cancelled) setIsAvailable(ok);
-      } catch {
-        thumbnailAvailabilityCache.set(url, false);
-        if (!cancelled) setIsAvailable(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [url]);
-
-  if (!isAvailable) return null;
+// Thumbnails are optional in OME and commonly return 404 unless explicitly enabled.
+// To avoid noisy browser console errors, we don't request thumbnails by default.
+function StreamThumbnailPlaceholder() {
   return (
-    <img
-      src={url}
-      alt={alt}
-      className="w-full h-full object-cover group-hover:opacity-80 transition-opacity"
-      loading="lazy"
-    />
+    <div className="absolute inset-0 bg-gradient-to-br from-slate-900 to-black" />
   );
 }
 
@@ -373,7 +336,7 @@ export function StreamsPage() {
                     <div className="relative bg-black rounded-md overflow-hidden aspect-video cursor-pointer group"
                       onClick={() => setPlayingStream({ streamName: stream.name, appName: stream.appName, channel: stream.matchedChannel })}
                     >
-                      <StreamThumbnail url={thumbnailUrl} alt={stream.name} />
+                      <StreamThumbnailPlaceholder />
                       <div className="absolute inset-0 flex items-center justify-center bg-black/50 group-hover:bg-black/30 transition-colors">
                         <div className="text-white text-center">
                           <Play className="w-8 h-8 mx-auto mb-2 opacity-75 group-hover:opacity-100 transition-opacity" />
