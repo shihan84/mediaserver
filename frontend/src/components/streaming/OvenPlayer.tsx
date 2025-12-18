@@ -53,6 +53,7 @@ export function OvenPlayer({
   const scriptLoadedRef = useRef(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isPlayerReady, setIsPlayerReady] = useState(false);
 
   // Load OvenPlayer script
   useEffect(() => {
@@ -238,6 +239,7 @@ export function OvenPlayer({
                 if (isMounted && playerInstanceRef.current) {
                   setIsLoading(false);
                   setError(null);
+                  setIsPlayerReady(true);
                   if (onReady) {
                     onReady();
                   }
@@ -262,6 +264,7 @@ export function OvenPlayer({
                 if (isMounted && state?.newstate === 'playing' && playerInstanceRef.current) {
                   setIsLoading(false);
                   setError(null);
+                  setIsPlayerReady(true);
                 }
               });
 
@@ -378,6 +381,10 @@ export function OvenPlayer({
 
   return (
     <div className={`relative bg-black rounded-lg overflow-hidden aspect-video ${className}`}>
+      {/* Prevent OvenPlayer internal null deref crashes if user clicks before player is ready */}
+      {!isPlayerReady && (
+        <div className="absolute inset-0 z-20" style={{ pointerEvents: 'auto' }} />
+      )}
       {isLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10">
           <div className="text-white text-center">
