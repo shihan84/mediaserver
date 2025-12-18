@@ -76,9 +76,10 @@ export function HlsVideoPlayer({ src, className = '', muted = true, autoPlay = t
           // ignore
         }
 
+        // Enable low-latency mode only for LLHLS manifests; keep standard HLS in normal mode.
+        const isLL = src.includes('llhls.m3u8') || src.includes('_llhls');
         hls = new Hls({
-          // Low-latency tuning for LLHLS
-          lowLatencyMode: true,
+          lowLatencyMode: isLL,
           enableWorker: true,
           backBufferLength: 0,
           liveSyncDuration: 3,

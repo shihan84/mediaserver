@@ -169,14 +169,15 @@ export function InlineStreamPlayer({ streamName, appName, channel, onStreamChang
               {playerSources.length > 0 ? (
                 <div className="space-y-3">
                   <div className="relative w-full bg-black rounded-lg overflow-hidden" style={{ aspectRatio: '16/9' }}>
-                    {getSourceUrl('llhls') && !forceWebrtc ? (
+                    {/* Prefer standard HLS (playlist.m3u8) for max compatibility; fallback to LLHLS */}
+                    {(getSourceUrl('hls') || getSourceUrl('llhls')) && !forceWebrtc ? (
                       <HlsVideoPlayer
-                        src={getSourceUrl('llhls')!}
+                        src={(getSourceUrl('hls') || getSourceUrl('llhls'))!}
                         className="w-full h-full"
                         muted
                         autoPlay
                         onFatalError={() => {
-                          // LLHLS can fail on some browsers (e.g. bufferAppendError). Fall back to WebRTC.
+                          // HLS/LLHLS can fail on some browsers (e.g. bufferAppendError). Fall back to WebRTC.
                           if (outputs?.webrtc) setForceWebrtc(true);
                         }}
                       />
